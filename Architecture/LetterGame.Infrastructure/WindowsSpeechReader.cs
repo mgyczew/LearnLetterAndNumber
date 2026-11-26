@@ -1,0 +1,107 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
+using LetterGame.Application.Contracts;
+
+namespace LetterGame.Infrastructure;
+
+public sealed class WindowsSpeechReader : IInstructionReader
+{
+    private readonly object? _voice;
+
+    public WindowsSpeechReader()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            var voiceType = Type.GetTypeFromProgID("SAPI.SpVoice");
+            if (voiceType is not null)
+            {
+                _voice = Activator.CreateInstance(voiceType);
+                SelectPolishVoice(voiceType);
+            }
+        }
+        catch (COMException)
+        {
+        }
+        catch (PlatformNotSupportedException)
+        {
+        }
+    }
+
+    public void Speak(string text)
+    {
+        if (_voice is null)
+        {
+            return;
+        }
+
+        try
+        {
+            InvokeSpeak(text, 1);
+        }
+        catch (COMException)
+        {
+        }
+        catch (TargetInvocationException)
+        {
+        }
+    }
+
+    public void Stop()
+    {
+        if (_voice is null)
+        {
+            return;
+        }
+
+        try
+        {
+            InvokeSpeak(string.Empty, 2);
+        }
+        catch (COMException)
+        {
+        }
+        catch (TargetInvocationException)
+        {
+        }
+    }
+
+    private void InvokeSpeak(string text, int flags)
+    {
+        _voice!.GetType().InvokeMember(
+            "Speak",
+            BindingFlags.InvokeMethod,
+            binder: null,
+            target: _voice,
+            args: [text, flags]);
+    }
+
+    private void SelectPolishVoice(Type voiceType)
+    {
+        try
+        {
+            var voices = voiceType.InvokeMember("GetVoices", BindingFlags.InvokeMethod, null, _voice, ["Language=0415", ""]);
+            if (voices is null)
+            {
+                return;
+            }
+
+            var count = (int)voices.GetType().InvokeMember("Count", BindingFlags.GetProperty, null, voices, null)!;
+            if (count > 0)
+            {
+                var polishVoice = voices.GetType().InvokeMember("Item", BindingFlags.InvokeMethod, null, voices, [0]);
+                voiceType.InvokeMember("Voice", BindingFlags.SetProperty, null, _voice, [polishVoice]);
+            }
+        }
+        catch (COMException)
+        {
+        }
+        catch (TargetInvocationException)
+        {
+        }
+    }
+}

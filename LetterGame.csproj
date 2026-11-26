@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Architecture\**\*.cs" />
+    <ProjectReference Include="Architecture\LetterGame.Domain\LetterGame.Domain.csproj" />
+    <ProjectReference Include="Architecture\LetterGame.Application\LetterGame.Application.csproj" />
+    <ProjectReference Include="Architecture\LetterGame.Infrastructure\LetterGame.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
