@@ -16,3 +16,9 @@ Zale¿noœci kieruj¹ siê do œrodka: `Application` korzysta z `Domain`, a `Infrastr
 ```powershell
 dotnet build LetterGame.sln
 ```
+
+## Testy
+
+```powershell
+dotnet test LetterGame.sln
+```

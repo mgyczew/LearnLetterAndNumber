@@ -14,13 +14,19 @@ public sealed class WordCatalogService(IWordCatalogSource wordSource, IWordImage
     public async Task<WordCatalogResult> GetWordsAsync(WordCategory category, CancellationToken cancellationToken = default)
     {
         IReadOnlyList<WordEntry> apiWords;
+        var apiUnavailable = false;
         try
         {
             apiWords = await wordSource.GetWordsAsync(category, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
         {
             apiWords = [];
+            apiUnavailable = true;
         }
 
         var fallbackTerms = category.OfflineWords
@@ -49,7 +55,7 @@ public sealed class WordCatalogService(IWordCatalogSource wordSource, IWordImage
             && (!fallbackImages.TryGetValue(word.Text, out var fallbackImage)
                 || !string.Equals(word.ImageUrl, fallbackImage, StringComparison.OrdinalIgnoreCase)));
 
-        return new WordCatalogResult(words, apiImageCount);
+        return new WordCatalogResult(words, apiImageCount, apiUnavailable);
     }
 
     public Task<WordImage?> GetImageAsync(WordEntry word, CancellationToken cancellationToken = default)

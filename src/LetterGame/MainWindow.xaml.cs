@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Net.Http;
 using System.Text.Json;
 using System.Windows;
@@ -48,6 +49,8 @@ public partial class MainWindow : Window
     private readonly WordPuzzleSession _wordPuzzle;
     private readonly Random _random = new();
     private readonly Dictionary<string, WordImage?> _imageCache = new(StringComparer.OrdinalIgnoreCase);
+    private CancellationTokenSource? _categoryLoadCancellation;
+    private CancellationTokenSource? _imageLoadCancellation;
     private IReadOnlyList<WordEntry> _words = [];
     private WordCategory? _currentCategory;
     private int _wordIndex = -1;
@@ -56,7 +59,7 @@ public partial class MainWindow : Window
     private bool _soundEnabled = true;
     private bool _mathInitialized;
     private int _mathQuestionVersion;
-    private string _mathSpokenQuestion = string.Empty;
+    private MathQuestionViewModel? _currentMathQuestion;
 
     public MainWindow(
         WordCatalogService catalog,
@@ -186,14 +189,12 @@ public partial class MainWindow : Window
         MathAnswers.Items.Clear();
         MathStatusText.Text = string.Empty;
 
-        var question = _mathLearning.CreateQuestion();
-        var (symbol, spokenOperator) = GetMathOperators(question.Lesson);
-        MathQuestionText.Text = $"{question.FirstOperand} {symbol} {question.SecondOperand} = ?";
-        _mathSpokenQuestion = $"Ile to {PolishNumberWords.ToWords(question.FirstOperand)} {spokenOperator} {PolishNumberWords.ToWords(question.SecondOperand)}?";
+        _currentMathQuestion = MathQuestionViewModel.From(_mathLearning.CreateQuestion());
+        MathQuestionText.Text = _currentMathQuestion.QuestionText;
         MathLessonHint.Text = _mathLearning.GetDifficultyHint();
         RefreshMathProgress();
 
-        foreach (var choice in question.Choices)
+        foreach (var choice in _currentMathQuestion.Choices)
         {
             var answerButton = new Button
             {
@@ -212,20 +213,8 @@ public partial class MainWindow : Window
         if (_soundEnabled)
         {
             _instructionReader.Stop();
-            _instructionReader.Speak(_mathSpokenQuestion);
+            _instructionReader.Speak(_currentMathQuestion.SpokenQuestion);
         }
-    }
-
-    private static (string Symbol, string SpokenOperator) GetMathOperators(MathLesson lesson)
-    {
-        return lesson switch
-        {
-            MathLesson.Addition => ("+", "plus"),
-            MathLesson.Subtraction => ("?", "minus"),
-            MathLesson.Multiplication => ("×", "razy"),
-            MathLesson.Division => ("÷", "podzieliæ przez"),
-            _ => throw new ArgumentOutOfRangeException(nameof(lesson))
-        };
     }
 
     private void RefreshMathProgress()
@@ -261,7 +250,11 @@ public partial class MainWindow : Window
         if (_soundEnabled)
         {
             _instructionReader.Stop();
-            _instructionReader.Speak(_mathSpokenQuestion);
+            if (_currentMathQuestion is { } question)
+            {
+                _instructionReader.Stop();
+                _instructionReader.Speak(question.SpokenQuestion);
+            }
         }
     }
 
@@ -281,6 +274,10 @@ public partial class MainWindow : Window
             return;
         }
 
+        _categoryLoadCancellation?.Cancel();
+        _categoryLoadCancellation?.Dispose();
+        var loadCancellation = new CancellationTokenSource();
+        _categoryLoadCancellation = loadCancellation;
         var loadVersion = ++_categoryLoadVersion;
         _currentCategory = category;
         _words = category.OfflineWords;
@@ -290,8 +287,8 @@ public partial class MainWindow : Window
 
         try
         {
-            var result = await _catalog.GetWordsAsync(category);
-            if (loadVersion != _categoryLoadVersion)
+            var result = await _catalog.GetWordsAsync(category, loadCancellation.Token);
+            if (loadCancellation.IsCancellationRequested || loadVersion != _categoryLoadVersion)
             {
                 return;
             }
@@ -311,13 +308,24 @@ public partial class MainWindow : Window
                 _wordIndex = -1;
                 ShowNextWord();
             }
-            SetStatus(result.ApiImageCount > 0
+            SetStatus(result.ApiUnavailable
+                ? $"Brak po³¹czenia z API — u¿ywam s³ów offline ({_words.Count})."
+                : result.ApiImageCount > 0
                 ? $"Obrazki z Wikipedii: {result.ApiImageCount}  ·  W zestawie: {_words.Count} s³ów"
                 : $"W zestawie: {_words.Count} prostych s³ów",
-                result.ApiImageCount > 0 ? Color.FromRgb(38, 148, 105) : Color.FromRgb(104, 115, 138));
+                result.ApiUnavailable
+                    ? Color.FromRgb(204, 139, 43)
+                    : result.ApiImageCount > 0 ? Color.FromRgb(38, 148, 105) : Color.FromRgb(104, 115, 138));
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (loadCancellation.IsCancellationRequested)
         {
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JsonException or InvalidOperationException or IOException)
+        {
+            if (loadVersion == _categoryLoadVersion)
+            {
+                SetStatus("Nie uda³o siê pobraæ s³ów. SprawdŸ po³¹czenie z internetem.", Color.FromRgb(207, 87, 100));
+            }
         }
     }
 
@@ -336,6 +344,9 @@ public partial class MainWindow : Window
     private void ShowCurrentWord(bool readInstruction, bool resetPuzzle)
     {
         var displayVersion = ++_displayVersion;
+        _imageLoadCancellation?.Cancel();
+        _imageLoadCancellation?.Dispose();
+        _imageLoadCancellation = null;
         if (_currentCategory is null || _wordIndex < 0 || _wordIndex >= _words.Count)
         {
             return;
@@ -362,7 +373,8 @@ public partial class MainWindow : Window
         RefreshLetters();
         if (!hasColorSwatch)
         {
-            _ = LoadImageAsync(word, displayVersion);
+            _imageLoadCancellation = new CancellationTokenSource();
+            _ = LoadImageAsync(word, displayVersion, _imageLoadCancellation.Token);
         }
         if (readInstruction && _soundEnabled)
         {
@@ -370,7 +382,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task LoadImageAsync(WordEntry word, int displayVersion)
+    private async Task LoadImageAsync(WordEntry word, int displayVersion, CancellationToken cancellationToken)
     {
         if (_imageCache.TryGetValue(word.Text, out var cachedImage))
         {
@@ -387,8 +399,8 @@ public partial class MainWindow : Window
 
         try
         {
-            var image = await _catalog.GetImageAsync(word);
-            if (displayVersion != _displayVersion)
+            var image = await _catalog.GetImageAsync(word, cancellationToken);
+            if (cancellationToken.IsCancellationRequested || displayVersion != _displayVersion)
             {
                 return;
             }
@@ -404,6 +416,9 @@ public partial class MainWindow : Window
             PictureImage.Visibility = Visibility.Visible;
             PictureText.Visibility = Visibility.Collapsed;
             SetImageCredit(image.SourceUrl);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or UriFormatException)
         {
@@ -668,5 +683,15 @@ public partial class MainWindow : Window
     private void Exit_Click(object sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _categoryLoadCancellation?.Cancel();
+        _imageLoadCancellation?.Cancel();
+        _categoryLoadCancellation?.Dispose();
+        _imageLoadCancellation?.Dispose();
+        _instructionReader.Stop();
+        base.OnClosed(e);
     }
 }
