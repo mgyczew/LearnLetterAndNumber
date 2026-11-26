@@ -1,17 +1,17 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.37411.7
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LetterGame", "LetterGame.csproj", "{1978DCC1-8E53-4A56-81E2-96DF41437674}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LetterGame", "src\LetterGame\LetterGame.csproj", "{1978DCC1-8E53-4A56-81E2-96DF41437674}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Architecture", "Architecture", "{D537209B-64B2-F104-47DD-D798487C220C}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{D537209B-64B2-F104-47DD-D798487C220C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LetterGame.Domain", "Architecture\LetterGame.Domain\LetterGame.Domain.csproj", "{E6A6E09E-B328-4F1C-8D2F-9273F9D761FA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LetterGame.Domain", "src\LetterGame.Domain\LetterGame.Domain.csproj", "{E6A6E09E-B328-4F1C-8D2F-9273F9D761FA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LetterGame.Application", "Architecture\LetterGame.Application\LetterGame.Application.csproj", "{6FFC6059-8926-4F2F-9738-3E2EFB0CBD4B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LetterGame.Application", "src\LetterGame.Application\LetterGame.Application.csproj", "{6FFC6059-8926-4F2F-9738-3E2EFB0CBD4B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LetterGame.Infrastructure", "Architecture\LetterGame.Infrastructure\LetterGame.Infrastructure.csproj", "{1346A330-746D-4A44-8C4F-C51A11DFC0B2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LetterGame.Infrastructure", "src\LetterGame.Infrastructure\LetterGame.Infrastructure.csproj", "{1346A330-746D-4A44-8C4F-C51A11DFC0B2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -76,6 +76,7 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{1978DCC1-8E53-4A56-81E2-96DF41437674} = {D537209B-64B2-F104-47DD-D798487C220C}
 		{E6A6E09E-B328-4F1C-8D2F-9273F9D761FA} = {D537209B-64B2-F104-47DD-D798487C220C}
 		{6FFC6059-8926-4F2F-9738-3E2EFB0CBD4B} = {D537209B-64B2-F104-47DD-D798487C220C}
 		{1346A330-746D-4A44-8C4F-C51A11DFC0B2} = {D537209B-64B2-F104-47DD-D798487C220C}
