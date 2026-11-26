@@ -2,6 +2,7 @@
 using System.Net.Http;
 using System.Windows;
 using LetterGame.Application.Services;
+using LetterGame.Domain.Services;
 using LetterGame.Infrastructure;
 
 namespace LetterGame
@@ -21,7 +22,9 @@ namespace LetterGame
                 new WikipediaWordCatalogSource(httpClient),
                 new WikimediaImageSource(httpClient));
 
-            var window = new MainWindow(catalog, new WindowsSpeechReader());
+            var mathLearning = new MathLearningService(new MathQuestionGenerator());
+            var wordPuzzle = new WordPuzzleSession();
+            var window = new MainWindow(catalog, new WindowsSpeechReader(), mathLearning, wordPuzzle);
             MainWindow = window;
             window.Show();
         }

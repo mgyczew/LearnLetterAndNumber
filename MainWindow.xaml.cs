@@ -9,22 +9,15 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using LetterGame.Application.Contracts;
+using LetterGame.Application.Models;
 using LetterGame.Application.Services;
 using LetterGame.Domain.Models;
+using LetterGame.Domain.Services;
 
 namespace LetterGame;
 
 public partial class MainWindow : Window
 {
-    private enum MathMode
-    {
-        Numbers,
-        Addition,
-        Subtraction,
-        Multiplication,
-        Division
-    }
-
     private static readonly IReadOnlyDictionary<string, Color> ColorSwatches = new Dictionary<string, Color>(StringComparer.OrdinalIgnoreCase)
     {
         ["BIA£Y"] = Colors.White,
@@ -51,31 +44,31 @@ public partial class MainWindow : Window
 
     private readonly WordCatalogService _catalog;
     private readonly IInstructionReader _instructionReader;
+    private readonly MathLearningService _mathLearning;
+    private readonly WordPuzzleSession _wordPuzzle;
     private readonly Random _random = new();
-    private readonly List<int> _selectedLetters = [];
     private readonly Dictionary<string, WordImage?> _imageCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<MathMode, int> _mathCorrectAnswers = [];
     private IReadOnlyList<WordEntry> _words = [];
     private WordCategory? _currentCategory;
     private int _wordIndex = -1;
-    private int _score;
     private int _categoryLoadVersion;
     private int _displayVersion;
-    private bool _answeredCorrectly;
     private bool _soundEnabled = true;
     private bool _mathInitialized;
-    private MathMode _mathMode = MathMode.Numbers;
-    private int _mathNumber = 1;
-    private int _mathScore;
-    private int _mathExpectedAnswer;
     private int _mathQuestionVersion;
     private string _mathSpokenQuestion = string.Empty;
 
-    public MainWindow(WordCatalogService catalog, IInstructionReader instructionReader)
+    public MainWindow(
+        WordCatalogService catalog,
+        IInstructionReader instructionReader,
+        MathLearningService mathLearning,
+        WordPuzzleSession wordPuzzle)
     {
         InitializeComponent();
         _catalog = catalog;
         _instructionReader = instructionReader;
+        _mathLearning = mathLearning;
+        _wordPuzzle = wordPuzzle;
         CategorySelector.ItemsSource = _catalog.Categories;
         CategorySelector.SelectedIndex = 0;
     }
@@ -90,7 +83,7 @@ public partial class MainWindow : Window
         if (!_mathInitialized)
         {
             _mathInitialized = true;
-            SetMathMode(MathMode.Numbers);
+            SetMathMode(MathLesson.Numbers);
         }
         else if (MathExercisePanel.Visibility == Visibility.Visible && !MathAnswers.IsEnabled)
         {
@@ -108,36 +101,35 @@ public partial class MainWindow : Window
 
     private void MathMode_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: string modeName } && Enum.TryParse(modeName, out MathMode mode))
+        if (sender is Button { Tag: string modeName } && Enum.TryParse(modeName, out MathLesson mode))
         {
             SetMathMode(mode);
         }
     }
 
-    private void SetMathMode(MathMode mode)
+    private void SetMathMode(MathLesson mode)
     {
-        _mathMode = mode;
-        var isNumberLesson = mode == MathMode.Numbers;
+        _mathQuestionVersion++;
+        _mathLearning.SelectLesson(mode);
+        var isNumberLesson = mode == MathLesson.Numbers;
         NumberLearningPanel.Visibility = isNumberLesson ? Visibility.Visible : Visibility.Collapsed;
         MathExercisePanel.Visibility = isNumberLesson ? Visibility.Collapsed : Visibility.Visible;
         MathLessonTitle.Text = mode switch
         {
-            MathMode.Numbers => "Poznaj liczby",
-            MathMode.Addition => "Dodawanie",
-            MathMode.Subtraction => "Odejmowanie",
-            MathMode.Multiplication => "Mno¿enie",
-            MathMode.Division => "Dzielenie",
+            MathLesson.Numbers => "Poznaj liczby",
+            MathLesson.Addition => "Dodawanie",
+            MathLesson.Subtraction => "Odejmowanie",
+            MathLesson.Multiplication => "Mno¿enie",
+            MathLesson.Division => "Dzielenie",
             _ => "Matematyka"
         };
-        MathLessonHint.Text = mode == MathMode.Numbers
-            ? "Uczymy siê po kolei od 1 do 1000. Mo¿esz te¿ wylosowaæ liczbê."
-            : GetMathDifficultyHint();
+        MathLessonHint.Text = _mathLearning.GetDifficultyHint();
 
-        NumbersModeButton.Style = GetMathModeStyle(mode == MathMode.Numbers);
-        AdditionModeButton.Style = GetMathModeStyle(mode == MathMode.Addition);
-        SubtractionModeButton.Style = GetMathModeStyle(mode == MathMode.Subtraction);
-        MultiplicationModeButton.Style = GetMathModeStyle(mode == MathMode.Multiplication);
-        DivisionModeButton.Style = GetMathModeStyle(mode == MathMode.Division);
+        NumbersModeButton.Style = GetMathModeStyle(mode == MathLesson.Numbers);
+        AdditionModeButton.Style = GetMathModeStyle(mode == MathLesson.Addition);
+        SubtractionModeButton.Style = GetMathModeStyle(mode == MathLesson.Subtraction);
+        MultiplicationModeButton.Style = GetMathModeStyle(mode == MathLesson.Multiplication);
+        DivisionModeButton.Style = GetMathModeStyle(mode == MathLesson.Division);
 
         if (isNumberLesson)
         {
@@ -154,31 +146,31 @@ public partial class MainWindow : Window
 
     private void UpdateNumberDisplay(bool readAloud)
     {
-        MathNumberValue.Text = _mathNumber.ToString();
-        MathNumberSpelling.Text = MathNumberWords.ToWords(_mathNumber);
-        MathNumberProgress.Text = $"Liczba {_mathNumber} z 1000";
+        MathNumberValue.Text = _mathLearning.CurrentNumber.ToString();
+        MathNumberSpelling.Text = _mathLearning.CurrentNumberWords;
+        MathNumberProgress.Text = $"Liczba {_mathLearning.CurrentNumber} z 1000";
         if (readAloud && _soundEnabled)
         {
             _instructionReader.Stop();
-            _instructionReader.Speak(MathNumberWords.ToWords(_mathNumber));
+            _instructionReader.Speak(_mathLearning.CurrentNumberWords);
         }
     }
 
     private void PreviousNumber_Click(object sender, RoutedEventArgs e)
     {
-        _mathNumber = _mathNumber == 1 ? 1000 : _mathNumber - 1;
+        _mathLearning.MoveNumber(-1);
         UpdateNumberDisplay(readAloud: true);
     }
 
     private void NextNumber_Click(object sender, RoutedEventArgs e)
     {
-        _mathNumber = _mathNumber == 1000 ? 1 : _mathNumber + 1;
+        _mathLearning.MoveNumber(1);
         UpdateNumberDisplay(readAloud: true);
     }
 
     private void RandomNumber_Click(object sender, RoutedEventArgs e)
     {
-        _mathNumber = _random.Next(1, 1001);
+        _mathLearning.ChooseRandomNumber();
         UpdateNumberDisplay(readAloud: true);
     }
 
@@ -187,34 +179,21 @@ public partial class MainWindow : Window
         UpdateNumberDisplay(readAloud: true);
     }
 
-    private string GetMathDifficultyHint()
-    {
-        var solved = _mathCorrectAnswers.GetValueOrDefault(_mathMode);
-        return _mathMode switch
-        {
-            MathMode.Addition => solved < 5 ? "Zaczynamy od dodawania do 20." : solved < 20 ? "Teraz dodajemy do 100." : "Spróbuj dodawaæ do 1000.",
-            MathMode.Subtraction => solved < 5 ? "Zaczynamy od odejmowania do 20." : solved < 20 ? "Teraz odejmujemy do 100." : "Spróbuj odejmowaæ do 1000.",
-            MathMode.Multiplication => solved < 5 ? "Na pocz¹tek ³atwe tabliczki: 2, 5 i 10." : solved < 20 ? "Æwiczymy tabliczkê mno¿enia do 10." : "Spokojnie æwiczymy wyniki a¿ do 1000.",
-            MathMode.Division => solved < 5 ? "Dzielimy ma³e liczby po równo." : solved < 20 ? "Æwiczymy proste dzielenie do 100." : "Spokojnie æwiczymy dzielenie a¿ do 1000.",
-            _ => string.Empty
-        };
-    }
-
     private void GenerateMathQuestion()
     {
         _mathQuestionVersion++;
         MathAnswers.IsEnabled = true;
         MathAnswers.Items.Clear();
         MathStatusText.Text = string.Empty;
-        MathLessonHint.Text = GetMathDifficultyHint();
 
-        var (first, second, answer, symbol, spokenOperator) = CreateMathProblem();
-        _mathExpectedAnswer = answer;
-        MathQuestionText.Text = $"{first} {symbol} {second} = ?";
-        _mathSpokenQuestion = $"Ile to {MathNumberWords.ToWords(first)} {spokenOperator} {MathNumberWords.ToWords(second)}?";
+        var question = _mathLearning.CreateQuestion();
+        var (symbol, spokenOperator) = GetMathOperators(question.Lesson);
+        MathQuestionText.Text = $"{question.FirstOperand} {symbol} {question.SecondOperand} = ?";
+        _mathSpokenQuestion = $"Ile to {PolishNumberWords.ToWords(question.FirstOperand)} {spokenOperator} {PolishNumberWords.ToWords(question.SecondOperand)}?";
+        MathLessonHint.Text = _mathLearning.GetDifficultyHint();
         RefreshMathProgress();
 
-        foreach (var choice in CreateMathChoices(answer).OrderBy(_ => _random.Next()))
+        foreach (var choice in question.Choices)
         {
             var answerButton = new Button
             {
@@ -237,123 +216,33 @@ public partial class MainWindow : Window
         }
     }
 
-    private (int First, int Second, int Answer, string Symbol, string SpokenOperator) CreateMathProblem()
+    private static (string Symbol, string SpokenOperator) GetMathOperators(MathLesson lesson)
     {
-        var solved = _mathCorrectAnswers.GetValueOrDefault(_mathMode);
-        switch (_mathMode)
+        return lesson switch
         {
-            case MathMode.Addition:
-            {
-                var limit = solved < 5 ? 20 : solved < 20 ? 100 : 1000;
-                var first = _random.Next(0, limit + 1);
-                var second = _random.Next(0, limit - first + 1);
-                if (first == 0 && second == 0)
-                {
-                    first = 1;
-                }
-
-                return (first, second, first + second, "+", "plus");
-            }
-            case MathMode.Subtraction:
-            {
-                var limit = solved < 5 ? 20 : solved < 20 ? 100 : 1000;
-                var first = _random.Next(1, limit + 1);
-                var second = _random.Next(0, first + 1);
-                return (first, second, first - second, "?", "minus");
-            }
-            case MathMode.Multiplication:
-            {
-                int first;
-                int second;
-                if (solved < 5)
-                {
-                    first = new[] { 2, 5, 10 }[_random.Next(3)];
-                    second = _random.Next(1, 6);
-                }
-                else if (solved < 20)
-                {
-                    first = _random.Next(1, 11);
-                    second = _random.Next(1, 11);
-                }
-                else
-                {
-                    first = _random.Next(1, 101);
-                    second = _random.Next(1, 11);
-                }
-
-                return (first, second, first * second, "×", "razy");
-            }
-            case MathMode.Division:
-            {
-                int divisor;
-                int quotient;
-                if (solved < 5)
-                {
-                    divisor = new[] { 2, 5, 10 }[_random.Next(3)];
-                    quotient = _random.Next(1, 6);
-                }
-                else if (solved < 20)
-                {
-                    divisor = _random.Next(2, 11);
-                    quotient = _random.Next(1, 11);
-                }
-                else
-                {
-                    divisor = _random.Next(2, 11);
-                    quotient = _random.Next(1, 101);
-                }
-
-                return (divisor * quotient, divisor, quotient, "÷", "podzieliæ przez");
-            }
-            default:
-                return (1, 1, 2, "+", "plus");
-        }
-    }
-
-    private int[] CreateMathChoices(int answer)
-    {
-        var choices = new HashSet<int> { answer };
-        var offsets = new[] { 1, -1, 2, -2, 5, -5, 10, -10, 20, -20, 50, -50 };
-        foreach (var offset in offsets.OrderBy(_ => _random.Next()))
-        {
-            var candidate = answer + offset;
-            if (candidate is >= 0 and <= 1000)
-            {
-                choices.Add(candidate);
-            }
-
-            if (choices.Count == 4)
-            {
-                break;
-            }
-        }
-
-        while (choices.Count < 4)
-        {
-            choices.Add(_random.Next(0, 1001));
-        }
-
-        return choices.ToArray();
+            MathLesson.Addition => ("+", "plus"),
+            MathLesson.Subtraction => ("?", "minus"),
+            MathLesson.Multiplication => ("×", "razy"),
+            MathLesson.Division => ("÷", "podzieliæ przez"),
+            _ => throw new ArgumentOutOfRangeException(nameof(lesson))
+        };
     }
 
     private void RefreshMathProgress()
     {
-        var solved = _mathCorrectAnswers.GetValueOrDefault(_mathMode);
-        MathProgressText.Text = $"Dobrze rozwi¹zane: {solved}";
+        MathProgressText.Text = $"Dobrze rozwi¹zane: {_mathLearning.CorrectAnswersInSelectedLesson}";
     }
 
     private void MathAnswer_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: int answer } || answer != _mathExpectedAnswer)
+        if (sender is not Button { Tag: int answer } || !_mathLearning.SubmitAnswer(answer))
         {
             MathStatusText.Text = "Spróbuj jeszcze raz! Dasz radê.";
             MathStatusText.Foreground = new SolidColorBrush(Color.FromRgb(204, 139, 43));
             return;
         }
 
-        _mathScore++;
-        MathScoreText.Text = _mathScore.ToString();
-        _mathCorrectAnswers[_mathMode] = _mathCorrectAnswers.GetValueOrDefault(_mathMode) + 1;
+        MathScoreText.Text = _mathLearning.Score.ToString();
         MathAnswers.IsEnabled = false;
         MathStatusText.Text = "Brawo! Œwietnie policzone!";
         MathStatusText.Foreground = new SolidColorBrush(Color.FromRgb(38, 148, 105));
@@ -396,7 +285,6 @@ public partial class MainWindow : Window
         _currentCategory = category;
         _words = category.OfflineWords;
         _wordIndex = -1;
-        _selectedLetters.Clear();
         ShowNextWord();
         SetStatus("Pobieram wiêkszy zestaw s³ów z darmowego API…", Colors.DarkSlateBlue);
 
@@ -448,18 +336,13 @@ public partial class MainWindow : Window
     private void ShowCurrentWord(bool readInstruction, bool resetPuzzle)
     {
         var displayVersion = ++_displayVersion;
-        if (resetPuzzle)
-        {
-            _selectedLetters.Clear();
-            _answeredCorrectly = false;
-        }
-
         if (_currentCategory is null || _wordIndex < 0 || _wordIndex >= _words.Count)
         {
             return;
         }
 
         var word = _words[_wordIndex];
+        _wordPuzzle.SetWord(word, resetPuzzle);
         CategoryLabel.Text = _currentCategory.Name;
         ClueText.Text = word.Clue;
         PictureImage.Source = null;
@@ -474,8 +357,8 @@ public partial class MainWindow : Window
         ColorSwatch.Visibility = hasColorSwatch ? Visibility.Visible : Visibility.Collapsed;
         PictureText.Text = word.Emoji;
         PictureText.Visibility = hasColorSwatch ? Visibility.Collapsed : Visibility.Visible;
-        CheckButton.IsEnabled = !_answeredCorrectly;
-        CheckButton.Opacity = _answeredCorrectly ? 0.55 : 1;
+        CheckButton.IsEnabled = !_wordPuzzle.IsSolved;
+        CheckButton.Opacity = _wordPuzzle.IsSolved ? 0.55 : 1;
         RefreshLetters();
         if (!hasColorSwatch)
         {
@@ -546,14 +429,14 @@ public partial class MainWindow : Window
 
     private void RefreshLetters()
     {
-        if (_words.Count == 0)
+        AnswerPanel.Items.Clear();
+        LetterBank.Items.Clear();
+        if (_wordPuzzle.CurrentWord is not { } currentWord)
         {
             return;
         }
 
-        var word = _words[_wordIndex].Text;
-        AnswerPanel.Items.Clear();
-        LetterBank.Items.Clear();
+        var word = currentWord.Text;
 
         for (var index = 0; index < word.Length; index++)
         {
@@ -568,7 +451,9 @@ public partial class MainWindow : Window
                 Background = new SolidColorBrush(Color.FromRgb(248, 249, 253)),
                 Child = new TextBlock
                 {
-                    Text = index < _selectedLetters.Count ? word[_selectedLetters[index]].ToString() : string.Empty,
+                    Text = index < _wordPuzzle.SelectedLetterIndices.Count
+                        ? word[_wordPuzzle.SelectedLetterIndices[index]].ToString()
+                        : string.Empty,
                     FontSize = 29,
                     FontWeight = FontWeights.Bold,
                     Foreground = new SolidColorBrush(Color.FromRgb(39, 49, 78)),
@@ -581,12 +466,12 @@ public partial class MainWindow : Window
 
         foreach (var letterIndex in Enumerable.Range(0, word.Length).OrderBy(_ => _random.Next()))
         {
-            var selected = _selectedLetters.Contains(letterIndex);
+            var selected = _wordPuzzle.SelectedLetterIndices.Contains(letterIndex);
             var letterButton = new Button
             {
                 Content = word[letterIndex].ToString(),
                 Style = (Style)FindResource("LetterTile"),
-                IsEnabled = !selected && !_answeredCorrectly,
+                IsEnabled = !selected && !_wordPuzzle.IsSolved,
                 Opacity = selected ? 0.35 : 1,
                 Tag = letterIndex
             };
@@ -597,9 +482,8 @@ public partial class MainWindow : Window
 
     private void Letter_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: int letterIndex } && !_answeredCorrectly)
+        if (sender is Button { Tag: int letterIndex } && _wordPuzzle.SelectLetter(letterIndex))
         {
-            _selectedLetters.Add(letterIndex);
             ClearStatus();
             RefreshLetters();
         }
@@ -607,9 +491,8 @@ public partial class MainWindow : Window
 
     private void Undo_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedLetters.Count > 0 && !_answeredCorrectly)
+        if (_wordPuzzle.UndoSelection())
         {
-            _selectedLetters.RemoveAt(_selectedLetters.Count - 1);
             ClearStatus();
             RefreshLetters();
         }
@@ -617,9 +500,8 @@ public partial class MainWindow : Window
 
     private void Clear_Click(object sender, RoutedEventArgs e)
     {
-        if (!_answeredCorrectly)
+        if (_wordPuzzle.ClearSelection())
         {
-            _selectedLetters.Clear();
             ClearStatus();
             RefreshLetters();
         }
@@ -627,24 +509,21 @@ public partial class MainWindow : Window
 
     private void Check_Click(object sender, RoutedEventArgs e)
     {
-        if (_words.Count == 0)
+        if (_wordPuzzle.CurrentWord is null)
         {
             return;
         }
 
-        var word = _words[_wordIndex].Text;
-        if (_selectedLetters.Count != word.Length)
+        var result = _wordPuzzle.CheckAnswer();
+        if (result == WordAnswerResult.Incomplete)
         {
             SetStatus("U³ó¿ wszystkie litery i spróbuj ponownie.", Color.FromRgb(204, 139, 43));
             return;
         }
 
-        var answer = new string(_selectedLetters.Select(index => word[index]).ToArray());
-        if (string.Equals(answer, word, StringComparison.OrdinalIgnoreCase))
+        if (result == WordAnswerResult.Correct)
         {
-            _answeredCorrectly = true;
-            _score++;
-            ScoreText.Text = _score.ToString();
+            ScoreText.Text = _wordPuzzle.Score.ToString();
             SetStatus("Brawo! Œwietnie u³o¿one s³owo!", Color.FromRgb(38, 148, 105));
             CheckButton.IsEnabled = false;
             RefreshLetters();
@@ -670,7 +549,7 @@ public partial class MainWindow : Window
     private async Task AdvanceAfterCorrectAnswerAsync(int completedWordVersion)
     {
         await Task.Delay(TimeSpan.FromSeconds(3));
-        if (completedWordVersion == _displayVersion && _answeredCorrectly)
+        if (completedWordVersion == _displayVersion && _wordPuzzle.IsSolved)
         {
             ShowNextWord();
         }

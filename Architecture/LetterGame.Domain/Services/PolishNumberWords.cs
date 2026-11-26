@@ -1,6 +1,6 @@
-namespace LetterGame;
+namespace LetterGame.Domain.Services;
 
-internal static class MathNumberWords
+public static class PolishNumberWords
 {
     private static readonly string[] Units = ["", "jeden", "dwa", "trzy", "cztery", "piêæ", "szeœæ", "siedem", "osiem", "dziewiêæ"];
     private static readonly string[] Teens = ["dziesiêæ", "jedenaœcie", "dwanaœcie", "trzynaœcie", "czternaœcie", "piêtnaœcie", "szesnaœcie", "siedemnaœcie", "osiemnaœcie", "dziewiêtnaœcie"];
