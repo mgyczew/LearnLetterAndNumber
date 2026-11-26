@@ -9,6 +9,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
+using System.Windows.Shapes;
 using LetterGame.Application.Contracts;
 using LetterGame.Application.Models;
 using LetterGame.Application.Services;
@@ -47,6 +48,7 @@ public partial class MainWindow : Window
     private readonly IInstructionReader _instructionReader;
     private readonly MathLearningService _mathLearning;
     private readonly WordPuzzleSession _wordPuzzle;
+    private readonly NumberQuizService _numberQuiz;
     private readonly Random _random = new();
     private readonly Dictionary<string, WordImage?> _imageCache = new(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _categoryLoadCancellation;
@@ -60,18 +62,22 @@ public partial class MainWindow : Window
     private bool _mathInitialized;
     private int _mathQuestionVersion;
     private MathQuestionViewModel? _currentMathQuestion;
+    private NumberQuizQuestion? _currentNumberQuizQuestion;
+    private int _numberQuizScore;
 
     public MainWindow(
         WordCatalogService catalog,
         IInstructionReader instructionReader,
         MathLearningService mathLearning,
-        WordPuzzleSession wordPuzzle)
+        WordPuzzleSession wordPuzzle,
+        NumberQuizService numberQuiz)
     {
         InitializeComponent();
         _catalog = catalog;
         _instructionReader = instructionReader;
         _mathLearning = mathLearning;
         _wordPuzzle = wordPuzzle;
+        _numberQuiz = numberQuiz;
         CategorySelector.ItemsSource = _catalog.Categories;
         CategorySelector.SelectedIndex = 0;
     }
@@ -117,6 +123,7 @@ public partial class MainWindow : Window
         var isNumberLesson = mode == MathLesson.Numbers;
         NumberLearningPanel.Visibility = isNumberLesson ? Visibility.Visible : Visibility.Collapsed;
         MathExercisePanel.Visibility = isNumberLesson ? Visibility.Collapsed : Visibility.Visible;
+        NumberQuizPanel.Visibility = Visibility.Collapsed;
         MathLessonTitle.Text = mode switch
         {
             MathLesson.Numbers => "Poznaj liczby",
@@ -152,10 +159,52 @@ public partial class MainWindow : Window
         MathNumberValue.Text = _mathLearning.CurrentNumber.ToString();
         MathNumberSpelling.Text = _mathLearning.CurrentNumberWords;
         MathNumberProgress.Text = $"Liczba {_mathLearning.CurrentNumber} z 1000";
+        UpdateNumberVisual(_mathLearning.CurrentNumber);
         if (readAloud && _soundEnabled)
         {
             _instructionReader.Stop();
             _instructionReader.Speak(_mathLearning.CurrentNumberWords);
+        }
+    }
+
+    private void UpdateNumberVisual(int number)
+    {
+        NumberDotsPanel.Visibility = number <= NumberQuizService.MaximumNumber ? Visibility.Visible : Visibility.Collapsed;
+        FillDotPanel(NumberDotsPanel, number <= NumberQuizService.MaximumNumber ? number : 0);
+
+        var thousands = number / 1000;
+        var hundreds = number % 1000 / 100;
+        var tens = number % 100 / 10;
+        var units = number % 10;
+        var placeValues = new List<string>();
+        if (thousands > 0)
+        {
+            placeValues.Add($"Tysi¹ce: {thousands}");
+        }
+        if (hundreds > 0 || thousands > 0)
+        {
+            placeValues.Add($"Setki: {hundreds}");
+        }
+        if (tens > 0 || hundreds > 0 || thousands > 0)
+        {
+            placeValues.Add($"Dziesi¹tki: {tens}");
+        }
+        placeValues.Add($"Jednoœci: {units}");
+        NumberPlaceValueText.Text = string.Join("  •  ", placeValues);
+    }
+
+    private static void FillDotPanel(Panel panel, int count)
+    {
+        panel.Children.Clear();
+        for (var index = 0; index < count; index++)
+        {
+            panel.Children.Add(new Ellipse
+            {
+                Width = 18,
+                Height = 18,
+                Margin = new Thickness(4),
+                Fill = new SolidColorBrush(Color.FromRgb(91, 99, 232))
+            });
         }
     }
 
@@ -180,6 +229,104 @@ public partial class MainWindow : Window
     private void ReadNumber_Click(object sender, RoutedEventArgs e)
     {
         UpdateNumberDisplay(readAloud: true);
+    }
+
+    private void StartNumberQuiz_Click(object sender, RoutedEventArgs e)
+    {
+        NumberLearningPanel.Visibility = Visibility.Collapsed;
+        NumberQuizPanel.Visibility = Visibility.Visible;
+        GenerateNumberQuizQuestion();
+    }
+
+    private void ReturnToNumberLearning_Click(object sender, RoutedEventArgs e)
+    {
+        NumberQuizPanel.Visibility = Visibility.Collapsed;
+        NumberLearningPanel.Visibility = Visibility.Visible;
+        UpdateNumberDisplay(readAloud: false);
+    }
+
+    private void GenerateNumberQuizQuestion()
+    {
+        var question = _numberQuiz.CreateQuestion();
+        _currentNumberQuizQuestion = question;
+        NumberQuizQuestionText.Text = question.Prompt;
+        NumberQuizDotsPanel.Visibility = question.Quantity.HasValue ? Visibility.Visible : Visibility.Collapsed;
+        FillDotPanel(NumberQuizDotsPanel, question.Quantity ?? 0);
+        NumberQuizAnswers.Items.Clear();
+        NumberQuizStatusText.Text = string.Empty;
+        NextNumberQuizButton.IsEnabled = false;
+
+        foreach (var choice in question.Choices)
+        {
+            var answerButton = new Button
+            {
+                Content = new TextBlock
+                {
+                    Text = choice,
+                    TextAlignment = TextAlignment.Center,
+                    TextWrapping = TextWrapping.Wrap
+                },
+                Tag = choice,
+                Width = 190,
+                Height = 72,
+                Margin = new Thickness(7),
+                FontSize = 23,
+                Style = (Style)FindResource("PrimaryButton")
+            };
+            answerButton.Click += NumberQuizAnswer_Click;
+            NumberQuizAnswers.Items.Add(answerButton);
+        }
+
+        if (_soundEnabled)
+        {
+            _instructionReader.Stop();
+            _instructionReader.Speak(question.SpokenPrompt);
+        }
+    }
+
+    private void NumberQuizAnswer_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string answer } || _currentNumberQuizQuestion is not { } question)
+        {
+            return;
+        }
+
+        if (!string.Equals(answer, question.CorrectAnswer, StringComparison.Ordinal))
+        {
+            NumberQuizStatusText.Text = "Spróbuj jeszcze raz!";
+            NumberQuizStatusText.Foreground = new SolidColorBrush(Color.FromRgb(204, 139, 43));
+            return;
+        }
+
+        _numberQuizScore++;
+        NumberQuizScoreText.Text = $"Dobre odpowiedzi: {_numberQuizScore}";
+        NumberQuizStatusText.Text = "Brawo! Œwietnie!";
+        NumberQuizStatusText.Foreground = new SolidColorBrush(Color.FromRgb(38, 148, 105));
+        foreach (var item in NumberQuizAnswers.Items.OfType<Button>())
+        {
+            item.IsEnabled = false;
+        }
+        NextNumberQuizButton.IsEnabled = true;
+
+        if (_soundEnabled)
+        {
+            _instructionReader.Stop();
+            _instructionReader.Speak("Brawo! Œwietnie!");
+        }
+    }
+
+    private void NextNumberQuiz_Click(object sender, RoutedEventArgs e)
+    {
+        GenerateNumberQuizQuestion();
+    }
+
+    private void ReadNumberQuizQuestion_Click(object sender, RoutedEventArgs e)
+    {
+        if (_soundEnabled && _currentNumberQuizQuestion is { } question)
+        {
+            _instructionReader.Stop();
+            _instructionReader.Speak(question.SpokenPrompt);
+        }
     }
 
     private void GenerateMathQuestion()
@@ -249,7 +396,6 @@ public partial class MainWindow : Window
     {
         if (_soundEnabled)
         {
-            _instructionReader.Stop();
             if (_currentMathQuestion is { } question)
             {
                 _instructionReader.Stop();
@@ -624,6 +770,7 @@ public partial class MainWindow : Window
         MathSoundButton.Content = SoundButton.Content;
         ListenButton.IsEnabled = _soundEnabled;
         MathReadNumberButton.IsEnabled = _soundEnabled;
+        NumberQuizReadButton.IsEnabled = _soundEnabled;
         MathReadQuestionButton.IsEnabled = _soundEnabled;
         if (!_soundEnabled)
         {

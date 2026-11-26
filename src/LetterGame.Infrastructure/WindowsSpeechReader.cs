@@ -84,13 +84,19 @@ public sealed class WindowsSpeechReader : IInstructionReader
     {
         try
         {
-            var voices = voiceType.InvokeMember("GetVoices", BindingFlags.InvokeMethod, null, _voice, ["Language=0415", ""]);
+            object? voices = voiceType.InvokeMember("GetVoices", BindingFlags.InvokeMethod, null, _voice, ["Language=0415", ""]);
+            var count = GetVoiceCount(voices);
+            if (count == 0)
+            {
+                voices = voiceType.InvokeMember("GetVoices", BindingFlags.InvokeMethod, null, _voice, ["Language=415", ""]);
+                count = GetVoiceCount(voices);
+            }
+
             if (voices is null)
             {
                 return;
             }
 
-            var count = (int)voices.GetType().InvokeMember("Count", BindingFlags.GetProperty, null, voices, null)!;
             if (count > 0)
             {
                 var polishVoice = voices.GetType().InvokeMember("Item", BindingFlags.InvokeMethod, null, voices, [0]);
@@ -103,5 +109,12 @@ public sealed class WindowsSpeechReader : IInstructionReader
         catch (TargetInvocationException)
         {
         }
+    }
+
+    private static int GetVoiceCount(object? voices)
+    {
+        return voices is null
+            ? 0
+            : (int)voices.GetType().InvokeMember("Count", BindingFlags.GetProperty, null, voices, null)!;
     }
 }

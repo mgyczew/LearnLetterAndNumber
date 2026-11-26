@@ -227,12 +227,48 @@
                             <TextBlock Text="POZNAJ LICZBĘ" HorizontalAlignment="Center" FontSize="13" FontWeight="Bold" Foreground="{StaticResource Accent}" />
                             <TextBlock x:Name="MathNumberValue" Text="1" Margin="0,8,0,0" HorizontalAlignment="Center" FontSize="96" FontWeight="Bold" Foreground="{StaticResource Ink}" />
                             <TextBlock x:Name="MathNumberSpelling" Text="jeden" Margin="0,0,0,8" HorizontalAlignment="Center" FontSize="32" FontWeight="SemiBold" Foreground="{StaticResource Accent}" />
+                            <Border Margin="0,4,0,12" Padding="14,10" Background="#F6F7FF" CornerRadius="16">
+                                <StackPanel>
+                                    <WrapPanel x:Name="NumberDotsPanel" Width="280" HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="NumberPlaceValueText" Margin="0,4,0,0" HorizontalAlignment="Center"
+                                               FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                                </StackPanel>
+                            </Border>
                             <TextBlock x:Name="MathNumberProgress" Text="Liczba 1 z 1000" Margin="0,0,0,20" HorizontalAlignment="Center" FontSize="16" Foreground="{StaticResource Muted}" />
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <Button Content="Poprzednia" Click="PreviousNumber_Click" Style="{StaticResource SecondaryButton}" Margin="5" />
                                 <Button x:Name="MathReadNumberButton" Content="Odsłuchaj liczbę" Click="ReadNumber_Click" Style="{StaticResource SecondaryButton}" Margin="5" />
                                 <Button Content="Losuj liczbę" Click="RandomNumber_Click" Style="{StaticResource SecondaryButton}" Margin="5" />
                                 <Button Content="Następna" Click="NextNumber_Click" Style="{StaticResource PrimaryButton}" Margin="5" />
+                            </StackPanel>
+                            <Button Content="Sprawdź się" Click="StartNumberQuiz_Click" Style="{StaticResource PrimaryButton}"
+                                    Margin="0,12,0,0" HorizontalAlignment="Center" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="NumberQuizPanel" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="SPRAWDŹ SIĘ" HorizontalAlignment="Center" FontSize="13" FontWeight="Bold" Foreground="{StaticResource Accent}" />
+                            <TextBlock x:Name="NumberQuizScoreText" Text="Dobre odpowiedzi: 0" Margin="0,6,0,14"
+                                       HorizontalAlignment="Center" FontSize="16" Foreground="{StaticResource Muted}" />
+                            <TextBlock x:Name="NumberQuizQuestionText" Text="Ile jest kropek?" MaxWidth="850"
+                                       HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                                       FontSize="34" FontWeight="Bold" Foreground="{StaticResource Ink}" />
+                            <WrapPanel x:Name="NumberQuizDotsPanel" Width="280" Margin="0,14,0,0"
+                                       HorizontalAlignment="Center" Visibility="Collapsed" />
+                            <ItemsControl x:Name="NumberQuizAnswers" Margin="0,18,0,0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel HorizontalAlignment="Center" /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                            <TextBlock x:Name="NumberQuizStatusText" Text="" Margin="0,10,0,0"
+                                       HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,14,0,0">
+                                <Button x:Name="NumberQuizReadButton" Content="Odsłuchaj" Click="ReadNumberQuizQuestion_Click"
+                                        Style="{StaticResource SecondaryButton}" Margin="5" />
+                                <Button x:Name="NextNumberQuizButton" Content="Następne pytanie" Click="NextNumberQuiz_Click"
+                                        Style="{StaticResource PrimaryButton}" Margin="5" IsEnabled="False" />
+                                <Button Content="Wróć do liczby" Click="ReturnToNumberLearning_Click"
+                                        Style="{StaticResource SecondaryButton}" Margin="5" />
                             </StackPanel>
                         </StackPanel>
 

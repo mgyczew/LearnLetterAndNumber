@@ -12,8 +12,8 @@ public sealed class MathQuestionViewModelTests
 
         var viewModel = MathQuestionViewModel.From(question);
 
-        Assert.Equal("8 ? 3 = ?", viewModel.QuestionText);
-        Assert.Equal("Ile to osiem minus trzy?", viewModel.SpokenQuestion);
+        Assert.Equal("8 \u2212 3 = ?", viewModel.QuestionText);
+        Assert.Equal("Ile to jest: osiem minus trzy?", viewModel.SpokenQuestion);
         Assert.Equal(question.Choices, viewModel.Choices);
     }
 
