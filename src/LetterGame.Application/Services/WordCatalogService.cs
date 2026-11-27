@@ -11,6 +11,13 @@ public sealed class WordCatalogService(IWordCatalogSource wordSource, IWordImage
 {
     public IReadOnlyList<WordCategory> Categories => WordCategories.All;
 
+    public IReadOnlyList<WordEntry> GetGameWords(IEnumerable<WordEntry> additionalWords) => Categories
+        .SelectMany(category => category.OfflineWords)
+        .Concat(additionalWords)
+        .Where(word => word.Text.Length is >= 3 and <= 14 && word.Text.All(char.IsLetter))
+        .DistinctBy(word => word.Text, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
     public async Task<WordCatalogResult> GetWordsAsync(WordCategory category, CancellationToken cancellationToken = default)
     {
         IReadOnlyList<WordEntry> apiWords;

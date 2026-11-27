@@ -49,6 +49,10 @@ public partial class MainWindow : Window
     private readonly MathLearningService _mathLearning;
     private readonly WordPuzzleSession _wordPuzzle;
     private readonly NumberQuizService _numberQuiz;
+    private readonly WordChainGameService _wordChainGame;
+    private readonly NumberGameSession _numberGame;
+    private readonly SnakeGameSession _snakeGame;
+    private readonly PictureMatchGameSession _pictureMatchGame;
     private readonly Random _random = new();
     private readonly Dictionary<string, WordImage?> _imageCache = new(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _categoryLoadCancellation;
@@ -64,13 +68,16 @@ public partial class MainWindow : Window
     private MathQuestionViewModel? _currentMathQuestion;
     private NumberQuizQuestion? _currentNumberQuizQuestion;
     private int _numberQuizScore;
-
     public MainWindow(
         WordCatalogService catalog,
         IInstructionReader instructionReader,
         MathLearningService mathLearning,
         WordPuzzleSession wordPuzzle,
-        NumberQuizService numberQuiz)
+        NumberQuizService numberQuiz,
+        WordChainGameService wordChainGame,
+        NumberGameSession numberGame,
+        SnakeGameSession snakeGame,
+        PictureMatchGameSession pictureMatchGame)
     {
         InitializeComponent();
         _catalog = catalog;
@@ -78,6 +85,11 @@ public partial class MainWindow : Window
         _mathLearning = mathLearning;
         _wordPuzzle = wordPuzzle;
         _numberQuiz = numberQuiz;
+        _wordChainGame = wordChainGame;
+        _numberGame = numberGame;
+        _snakeGame = snakeGame;
+        _pictureMatchGame = pictureMatchGame;
+        _snakeTimer.Tick += SnakeTimer_Tick;
         CategorySelector.ItemsSource = _catalog.Categories;
         CategorySelector.SelectedIndex = 0;
     }
@@ -86,7 +98,9 @@ public partial class MainWindow : Window
     {
         _displayVersion++;
         _instructionReader.Stop();
+        StopSnakeGame();
         WordZone.Visibility = Visibility.Collapsed;
+        GameZone.Visibility = Visibility.Collapsed;
         MathZone.Visibility = Visibility.Visible;
 
         if (!_mathInitialized)
@@ -104,8 +118,788 @@ public partial class MainWindow : Window
     {
         _mathQuestionVersion++;
         _instructionReader.Stop();
+        StopSnakeGame();
         MathZone.Visibility = Visibility.Collapsed;
+        GameZone.Visibility = Visibility.Collapsed;
         WordZone.Visibility = Visibility.Visible;
+    }
+
+    private void OpenGames_Click(object sender, RoutedEventArgs e)
+    {
+        _displayVersion++;
+        _mathQuestionVersion++;
+        _instructionReader.Stop();
+        StopSnakeGame();
+        WordZone.Visibility = Visibility.Collapsed;
+        MathZone.Visibility = Visibility.Collapsed;
+        GameZone.Visibility = Visibility.Visible;
+        GameMenuPanel.Visibility = Visibility.Visible;
+        WordChainPanel.Visibility = Visibility.Collapsed;
+        SnakeGamePanel.Visibility = Visibility.Collapsed;
+        PictureMatchPanel.Visibility = Visibility.Collapsed;
+        NumberGamePanel.Visibility = Visibility.Collapsed;
+    }
+
+    private void StartWordChain_Click(object sender, RoutedEventArgs e)
+    {
+        _gameWords = _catalog.GetGameWords(_words);
+        _wordChainGame.Start(_gameWords);
+        _wordChainSessionVersion++;
+        WordChainScoreText.Text = "Punkty: 0";
+        GameMenuPanel.Visibility = Visibility.Collapsed;
+        WordChainPanel.Visibility = Visibility.Visible;
+        SnakeGamePanel.Visibility = Visibility.Collapsed;
+        PictureMatchPanel.Visibility = Visibility.Collapsed;
+        NumberGamePanel.Visibility = Visibility.Collapsed;
+        WordChainStatusText.Text = string.Empty;
+        RefreshWordChainLetters();
+    }
+
+    private void BackToGameMenu_Click(object sender, RoutedEventArgs e)
+    {
+        _wordChainSessionVersion++;
+        _pictureMatchGeneration++;
+        StopSnakeGame();
+        WordChainPanel.Visibility = Visibility.Collapsed;
+        SnakeGamePanel.Visibility = Visibility.Collapsed;
+        PictureMatchPanel.Visibility = Visibility.Collapsed;
+        NumberGamePanel.Visibility = Visibility.Collapsed;
+        GameMenuPanel.Visibility = Visibility.Visible;
+    }
+
+    private void StartSnakeGame_Click(object sender, RoutedEventArgs e)
+    {
+        _gameWords = _catalog.GetGameWords(_words);
+        GameMenuPanel.Visibility = Visibility.Collapsed;
+        WordChainPanel.Visibility = Visibility.Collapsed;
+        PictureMatchPanel.Visibility = Visibility.Collapsed;
+        NumberGamePanel.Visibility = Visibility.Collapsed;
+        SnakeGamePanel.Visibility = Visibility.Visible;
+        BeginSnakeRound();
+    }
+
+    private void StartSnakeRound_Click(object sender, RoutedEventArgs e)
+    {
+        BeginSnakeRound();
+    }
+
+    private void BeginSnakeRound()
+    {
+        _snakeTimer.Stop();
+        _snakeGameVersion++;
+        if (!_snakeGame.Start(_gameWords))
+        {
+            SnakeStatusText.Text = "Brak s³ów do gry. Wybierz inn¹ kategoriê i spróbuj ponownie.";
+            return;
+        }
+
+        SnakeScoreText.Text = $"Punkty: {_snakeGame.State.Score}";
+        StartSnakeButton.Content = "Zagraj ponownie";
+        SnakeStatusText.Text = "Steruj strza³kami. Zbieraj kolejne litery s³owa.";
+        UpdateSnakeGoal();
+        RenderSnakeBoard();
+        _snakeTimer.Start();
+        SnakeBoard.Focus();
+    }
+
+    private void UpdateSnakeGoal()
+    {
+        var state = _snakeGame.State;
+        if (state.TargetLetterIndex >= state.TargetWord.Length)
+        {
+            SnakeGoalText.Text = $"U³o¿one s³owo: {state.TargetWord}";
+            return;
+        }
+
+        var progress = string.Concat(state.TargetWord.Select((letter, index) => index < state.TargetLetterIndex ? letter : '?'));
+        SnakeGoalText.Text = $"U³ó¿ s³owo: {progress}   ·   nastêpna litera: {state.TargetWord[state.TargetLetterIndex]}";
+    }
+
+    private void SnakeTimer_Tick(object? sender, EventArgs e)
+    {
+        var beforeMove = _snakeGame.State;
+        var result = _snakeGame.Tick();
+        if (result == SnakeTickResult.NotRunning)
+        {
+            return;
+        }
+
+        if (result == SnakeTickResult.GameOver)
+        {
+            _snakeTimer.Stop();
+            SnakeStatusText.Text = "Koniec gry! Naciœnij „Zagraj ponownie”, aby spróbowaæ jeszcze raz.";
+            RenderSnakeBoard();
+            return;
+        }
+
+        if (result == SnakeTickResult.LetterCollected)
+        {
+            if (_soundEnabled)
+            {
+                _instructionReader.Speak(beforeMove.TargetWord[beforeMove.TargetLetterIndex].ToString().ToLowerInvariant());
+            }
+
+            SnakeStatusText.Text = "Dobra robota! Zbieraj nastêpn¹ literê.";
+        }
+
+        if (result == SnakeTickResult.WordCompleted)
+        {
+            var state = _snakeGame.State;
+            SnakeScoreText.Text = $"Punkty: {state.Score}";
+            SnakeStatusText.Text = $"Brawo! U³o¿ono s³owo „{state.TargetWord}”. Za chwilê nastêpne.";
+            if (_soundEnabled)
+            {
+                _instructionReader.Speak(state.TargetWord.ToLowerInvariant());
+            }
+
+            _snakeTimer.Stop();
+            UpdateSnakeGoal();
+            RenderSnakeBoard();
+            _ = StartNextSnakeWordAsync(_snakeGameVersion);
+            return;
+        }
+
+        UpdateSnakeGoal();
+        RenderSnakeBoard();
+    }
+
+    private async Task StartNextSnakeWordAsync(int version)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        if (version != _snakeGameVersion || !_snakeGame.State.IsRunning || SnakeGamePanel.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        if (!_snakeGame.StartNextWord())
+        {
+            StopSnakeGame();
+            return;
+        }
+
+        UpdateSnakeGoal();
+        SnakeStatusText.Text = "Steruj strza³kami i zbieraj litery.";
+        RenderSnakeBoard();
+        _snakeTimer.Start();
+    }
+
+    private void RenderSnakeBoard()
+    {
+        SnakeBoard.Children.Clear();
+        var state = _snakeGame.State;
+        var foodX = state.FoodPosition.X * SnakeCellSize;
+        var foodY = state.FoodPosition.Y * SnakeCellSize;
+        SnakeBoard.Children.Add(new Ellipse
+        {
+            Width = SnakeCellSize - 2,
+            Height = SnakeCellSize - 2,
+            Fill = new SolidColorBrush(Color.FromRgb(255, 190, 65))
+        });
+        Canvas.SetLeft(SnakeBoard.Children[^1], foodX + 1);
+        Canvas.SetTop(SnakeBoard.Children[^1], foodY + 1);
+        var foodLetter = new TextBlock
+        {
+            Text = state.TargetWord.Length > state.TargetLetterIndex ? state.TargetWord[state.TargetLetterIndex].ToString() : string.Empty,
+            Width = SnakeCellSize,
+            Height = SnakeCellSize,
+            FontSize = 17,
+            FontWeight = FontWeights.Bold,
+            TextAlignment = TextAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = new SolidColorBrush(Color.FromRgb(39, 49, 78))
+        };
+        SnakeBoard.Children.Add(foodLetter);
+        Canvas.SetLeft(foodLetter, foodX);
+        Canvas.SetTop(foodLetter, foodY);
+
+        for (var index = state.Body.Count - 1; index >= 0; index--)
+        {
+            var segment = new Border
+            {
+                Width = SnakeCellSize - 2,
+                Height = SnakeCellSize - 2,
+                CornerRadius = new CornerRadius(6),
+                Background = new SolidColorBrush(index == 0
+                    ? Color.FromRgb(91, 99, 232)
+                    : Color.FromRgb(129, 139, 242))
+            };
+            SnakeBoard.Children.Add(segment);
+            Canvas.SetLeft(segment, state.Body[index].X * SnakeCellSize + 1);
+            Canvas.SetTop(segment, state.Body[index].Y * SnakeCellSize + 1);
+        }
+    }
+
+    private void StopSnakeGame()
+    {
+        _snakeGame.Stop();
+        _snakeGameVersion++;
+        _snakeTimer.Stop();
+    }
+
+    private void StartPictureMatch_Click(object sender, RoutedEventArgs e)
+    {
+        var candidates = _catalog.GetGameWords(_words);
+        var resetScore = PictureMatchPanel.Visibility != Visibility.Visible;
+        if (!_pictureMatchGame.Start(candidates, resetScore))
+        {
+            PictureMatchStatusText.Text = "Brak s³ów do przygotowania planszy.";
+            return;
+        }
+
+        StopSnakeGame();
+        GameMenuPanel.Visibility = Visibility.Collapsed;
+        WordChainPanel.Visibility = Visibility.Collapsed;
+        SnakeGamePanel.Visibility = Visibility.Collapsed;
+        PictureMatchPanel.Visibility = Visibility.Visible;
+        PictureMatchStatusText.Text = "Dopasuj wszystkie obrazki, uk³adaj¹c ich nazwy.";
+        _pictureMatchGeneration++;
+        var generation = _pictureMatchGeneration;
+        _pictureMatchPuzzles.Clear();
+        PictureMatchCardsPanel.Children.Clear();
+        PictureMatchScoreText.Text = $"Punkty: {_pictureMatchGame.State.Score}";
+
+        foreach (var puzzleState in _pictureMatchGame.State.Puzzles)
+        {
+            var puzzle = new PictureMatchPuzzle(puzzleState.Word);
+            _pictureMatchPuzzles.Add(puzzle);
+            PictureMatchCardsPanel.Children.Add(CreatePictureMatchCard(puzzle));
+            _ = LoadPictureMatchImageAsync(puzzle, generation);
+        }
+    }
+
+    private Border CreatePictureMatchCard(PictureMatchPuzzle puzzle)
+    {
+        var cardContent = new StackPanel();
+        var pictureArea = new Grid
+        {
+            Height = 122,
+            Margin = new Thickness(0, 0, 0, 10),
+            Background = new SolidColorBrush(Color.FromRgb(246, 247, 255))
+        };
+        puzzle.EmojiText = new TextBlock
+        {
+            Text = puzzle.Word.Emoji,
+            FontSize = 32,
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(Color.FromRgb(91, 99, 232)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        puzzle.Image = new Image
+        {
+            Stretch = Stretch.Uniform,
+            MaxWidth = 250,
+            MaxHeight = 120,
+            Visibility = Visibility.Collapsed
+        };
+        puzzle.Image.ImageFailed += (_, _) =>
+        {
+            puzzle.Image.Visibility = Visibility.Collapsed;
+            puzzle.EmojiText.Visibility = Visibility.Visible;
+        };
+        pictureArea.Children.Add(puzzle.EmojiText);
+        pictureArea.Children.Add(puzzle.Image);
+        cardContent.Children.Add(pictureArea);
+        cardContent.Children.Add(new TextBlock
+        {
+            Text = puzzle.Word.Clue,
+            Margin = new Thickness(0, 0, 0, 8),
+            FontSize = 14,
+            Foreground = new SolidColorBrush(Color.FromRgb(119, 129, 154)),
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        puzzle.AnswerPanel = new ItemsControl { HorizontalAlignment = HorizontalAlignment.Center };
+        puzzle.AnswerPanel.ItemsPanel = new ItemsPanelTemplate(new FrameworkElementFactory(typeof(WrapPanel)));
+        cardContent.Children.Add(puzzle.AnswerPanel);
+        puzzle.LetterBank = new ItemsControl { HorizontalAlignment = HorizontalAlignment.Center };
+        puzzle.LetterBank.ItemsPanel = new ItemsPanelTemplate(new FrameworkElementFactory(typeof(WrapPanel)));
+        cardContent.Children.Add(puzzle.LetterBank);
+        puzzle.StatusText = new TextBlock
+        {
+            Margin = new Thickness(0, 4, 0, 8),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            FontSize = 14,
+            FontWeight = FontWeights.SemiBold,
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = new SolidColorBrush(Color.FromRgb(119, 129, 154))
+        };
+        cardContent.Children.Add(puzzle.StatusText);
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+        puzzle.CheckButton = new Button
+        {
+            Content = "SprawdŸ",
+            Style = (Style)FindResource("PrimaryButton"),
+            Padding = new Thickness(14, 8, 14, 8),
+            FontSize = 14,
+            Margin = new Thickness(4)
+        };
+        puzzle.CheckButton.Click += (_, _) => CheckPictureMatchPuzzle(puzzle);
+        var clearButton = new Button
+        {
+            Content = "Wyczyœæ",
+            Style = (Style)FindResource("SecondaryButton"),
+            Padding = new Thickness(14, 8, 14, 8),
+            FontSize = 14,
+            Margin = new Thickness(4)
+        };
+        clearButton.Click += (_, _) =>
+        {
+            if (_pictureMatchGame.ClearSelection(puzzle.Word.Text))
+            {
+                puzzle.StatusText.Text = string.Empty;
+                RefreshPictureMatchPuzzle(puzzle);
+            }
+        };
+        buttons.Children.Add(clearButton);
+        buttons.Children.Add(puzzle.CheckButton);
+        cardContent.Children.Add(buttons);
+        RefreshPictureMatchPuzzle(puzzle);
+
+        return new Border
+        {
+            Width = 340,
+            MinHeight = 390,
+            Margin = new Thickness(10),
+            Padding = new Thickness(18),
+            Background = Brushes.White,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(228, 232, 242)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(20),
+            Child = cardContent
+        };
+    }
+
+    private void RefreshPictureMatchPuzzle(PictureMatchPuzzle puzzle)
+    {
+        puzzle.AnswerPanel.Items.Clear();
+        puzzle.LetterBank.Items.Clear();
+        var state = _pictureMatchGame.GetPuzzleState(puzzle.Word.Text);
+        if (state is null)
+        {
+            return;
+        }
+
+        for (var index = 0; index < puzzle.Word.Text.Length; index++)
+        {
+            var selectedIndex = index < state.SelectedLetterIndices.Count
+                ? state.SelectedLetterIndices[index]
+                : -1;
+            puzzle.AnswerPanel.Items.Add(new Border
+            {
+                Width = 42,
+                Height = 46,
+                Margin = new Thickness(3),
+                CornerRadius = new CornerRadius(9),
+                BorderThickness = new Thickness(1),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(225, 230, 241)),
+                Background = new SolidColorBrush(Color.FromRgb(248, 249, 253)),
+                Child = new TextBlock
+                {
+                    Text = selectedIndex >= 0 ? puzzle.Word.Text[selectedIndex].ToString() : string.Empty,
+                    FontSize = 20,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(39, 49, 78)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
+            });
+        }
+
+        foreach (var letterIndex in state.LetterBankIndices)
+        {
+            var selected = state.SelectedLetterIndices.Contains(letterIndex);
+            var button = new Button
+            {
+                Content = puzzle.Word.Text[letterIndex].ToString(),
+                Width = 48,
+                Height = 50,
+                Margin = new Thickness(3),
+                Padding = new Thickness(0),
+                FontSize = 21,
+                FontWeight = FontWeights.Bold,
+                Style = (Style)FindResource("LetterTile"),
+                IsEnabled = !selected && !state.IsSolved,
+                Opacity = selected ? 0.35 : 1,
+                Tag = new PictureMatchLetter(puzzle, letterIndex)
+            };
+            button.Click += PictureMatchLetter_Click;
+            puzzle.LetterBank.Items.Add(button);
+        }
+
+        puzzle.CheckButton.IsEnabled = !state.IsSolved;
+    }
+
+    private void PictureMatchLetter_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: PictureMatchLetter selection }
+            && _pictureMatchGame.SelectLetter(selection.Puzzle.Word.Text, selection.Index))
+        {
+            selection.Puzzle.StatusText.Text = string.Empty;
+            RefreshPictureMatchPuzzle(selection.Puzzle);
+        }
+    }
+
+    private void CheckPictureMatchPuzzle(PictureMatchPuzzle puzzle)
+    {
+        var result = _pictureMatchGame.SubmitAnswer(puzzle.Word.Text);
+        if (result == PictureMatchAnswerResult.Incomplete)
+        {
+            puzzle.StatusText.Text = "Wybierz wszystkie litery.";
+            puzzle.StatusText.Foreground = new SolidColorBrush(Color.FromRgb(204, 139, 43));
+            return;
+        }
+
+        if (result == PictureMatchAnswerResult.Incorrect)
+        {
+            puzzle.StatusText.Text = "Spróbuj zmieniæ kolejnoœæ liter.";
+            puzzle.StatusText.Foreground = new SolidColorBrush(Color.FromRgb(207, 87, 100));
+            return;
+        }
+
+        puzzle.StatusText.Text = "Dopasowano! Brawo!";
+        puzzle.StatusText.Foreground = new SolidColorBrush(Color.FromRgb(38, 148, 105));
+        PictureMatchScoreText.Text = $"Punkty: {_pictureMatchGame.State.Score}";
+        RefreshPictureMatchPuzzle(puzzle);
+        if (_pictureMatchGame.State.Puzzles.All(item => item.IsSolved))
+        {
+            PictureMatchStatusText.Text = "Œwietnie! Wszystkie obrazki dopasowane.";
+        }
+    }
+
+    private async Task LoadPictureMatchImageAsync(PictureMatchPuzzle puzzle, int generation)
+    {
+        try
+        {
+            WordImage? image;
+            if (_imageCache.TryGetValue(puzzle.Word.Text, out var cachedImage))
+            {
+                image = cachedImage;
+            }
+            else
+            {
+                image = await _catalog.GetImageAsync(puzzle.Word);
+                _imageCache[puzzle.Word.Text] = image;
+            }
+
+            if (generation != _pictureMatchGeneration || image is null)
+            {
+                return;
+            }
+
+            puzzle.Image.Source = new BitmapImage(new Uri(image.ImageUrl, UriKind.Absolute));
+            puzzle.Image.Visibility = Visibility.Visible;
+            puzzle.EmojiText.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or UriFormatException or InvalidOperationException)
+        {
+            if (generation == _pictureMatchGeneration)
+            {
+                puzzle.Image.Visibility = Visibility.Collapsed;
+                puzzle.EmojiText.Visibility = Visibility.Visible;
+            }
+        }
+    }
+
+    private void RefreshWordChainLetters()
+    {
+        WordChainAnswerPanel.Items.Clear();
+        WordChainSecondAnswerPanel.Items.Clear();
+        WordChainLetterBank.Items.Clear();
+        var state = _wordChainGame.State;
+        if (state.Targets.Count != 2)
+        {
+            return;
+        }
+
+        var answerPanels = new[] { WordChainAnswerPanel, WordChainSecondAnswerPanel };
+        for (var rowIndex = 0; rowIndex < answerPanels.Length; rowIndex++)
+        {
+            var answerPanel = answerPanels[rowIndex];
+            var answer = state.Answers[rowIndex]
+                ?? (rowIndex == state.ActiveWordIndex
+                    ? new string(state.SelectedLetterIndices.Select(index => state.LetterBank[index]).ToArray())
+                    : string.Empty);
+
+            for (var index = 0; index < state.Targets[rowIndex].Length; index++)
+            {
+                answerPanel.Items.Add(new Border
+                {
+                    Width = 66,
+                    Height = 70,
+                    Margin = new Thickness(6),
+                    CornerRadius = new CornerRadius(14),
+                    BorderThickness = new Thickness(2),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(225, 230, 241)),
+                    Background = new SolidColorBrush(Color.FromRgb(248, 249, 253)),
+                    Child = new TextBlock
+                    {
+                        Text = index < answer.Length ? answer[index].ToString() : string.Empty,
+                        FontSize = 29,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(39, 49, 78)),
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
+                    }
+                });
+            }
+        }
+
+        for (var letterIndex = 0; letterIndex < state.LetterBank.Count; letterIndex++)
+        {
+            var selected = state.SelectedLetterIndices.Contains(letterIndex);
+            var letterButton = new Button
+            {
+                Content = state.LetterBank[letterIndex].ToString(),
+                Style = (Style)FindResource("LetterTile"),
+                IsEnabled = !selected && !state.IsRoundComplete,
+                Opacity = selected ? 0.35 : 1,
+                Tag = letterIndex
+            };
+            letterButton.Click += WordChainLetter_Click;
+            WordChainLetterBank.Items.Add(letterButton);
+        }
+
+        WordChainProgressText.Text = $"Runda {state.Round} · dwa s³owa po {state.Targets[0].Length} liter";
+        WordChainBankHint.Text = $"U³ó¿ oba s³owa z tych samych {state.LetterBank.Count} liter.";
+        WordChainScoreText.Text = $"Punkty: {state.Score}";
+        CheckWordChainButton.IsEnabled = !state.IsRoundComplete;
+        NextWordChainButton.IsEnabled = state.IsRoundComplete;
+    }
+
+    private void WordChainLetter_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: int letterIndex } && _wordChainGame.SelectLetter(letterIndex))
+        {
+            RefreshWordChainLetters();
+        }
+    }
+
+    private void UndoWordChainLetter_Click(object sender, RoutedEventArgs e)
+    {
+        if (_wordChainGame.UndoSelection())
+        {
+            RefreshWordChainLetters();
+        }
+    }
+
+    private void ClearWordChain_Click(object sender, RoutedEventArgs e)
+    {
+        if (_wordChainGame.ClearSelection())
+        {
+            RefreshWordChainLetters();
+        }
+    }
+
+    private void CheckWordChain_Click(object sender, RoutedEventArgs e)
+    {
+        var result = _wordChainGame.SubmitAnswer();
+        if (result == WordChainAnswerResult.Incomplete)
+        {
+            WordChainStatusText.Text = "Wybierz wszystkie litery, zanim sprawdzisz.";
+            WordChainStatusText.Foreground = new SolidColorBrush(Color.FromRgb(204, 139, 43));
+            return;
+        }
+
+        if (result == WordChainAnswerResult.Incorrect)
+        {
+            WordChainStatusText.Text = "Spróbuj zmieniæ kolejnoœæ liter.";
+            WordChainStatusText.Foreground = new SolidColorBrush(Color.FromRgb(207, 87, 100));
+            return;
+        }
+
+        var state = _wordChainGame.State;
+        WordChainStatusText.Foreground = new SolidColorBrush(Color.FromRgb(38, 148, 105));
+        WordChainStatusText.Text = result == WordChainAnswerResult.FirstWordSolved
+            ? "Brawo! Teraz u³ó¿ drugie s³owo z tych samych liter."
+            : "Brawo! U³o¿ono oba s³owa.";
+        RefreshWordChainLetters();
+        var spokenAnswer = result == WordChainAnswerResult.FirstWordSolved
+            ? state.Answers[0]
+            : state.Answers[1];
+        if (_soundEnabled && spokenAnswer is { } answer)
+        {
+            _instructionReader.Speak(answer.ToLowerInvariant());
+        }
+    }
+
+    private async void NextWordChain_Click(object sender, RoutedEventArgs e)
+    {
+        var state = _wordChainGame.State;
+        if (!state.IsRoundComplete)
+        {
+            return;
+        }
+
+        var completedWords = string.Join(", ", state.Targets);
+        WordChainStatusText.Text = $"U³o¿ono: {completedWords}. Za chwilê kolejna runda.";
+        WordChainStatusText.Foreground = new SolidColorBrush(Color.FromRgb(38, 148, 105));
+        NextWordChainButton.IsEnabled = false;
+        if (_soundEnabled)
+        {
+            _instructionReader.Speak($"U³o¿one s³owa: {completedWords}");
+        }
+
+        var version = _wordChainSessionVersion;
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        if (version == _wordChainSessionVersion && WordChainPanel.Visibility == Visibility.Visible)
+        {
+            _wordChainGame.NextRound();
+            WordChainStatusText.Text = string.Empty;
+            RefreshWordChainLetters();
+        }
+    }
+
+    private void StartNumberGame_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string modeName }
+            || !Enum.TryParse(modeName, out NumberGameMode mode))
+        {
+            return;
+        }
+
+        _numberGame.Start(mode);
+        GameMenuPanel.Visibility = Visibility.Collapsed;
+        WordChainPanel.Visibility = Visibility.Collapsed;
+        SnakeGamePanel.Visibility = Visibility.Collapsed;
+        PictureMatchPanel.Visibility = Visibility.Collapsed;
+        NumberGamePanel.Visibility = Visibility.Visible;
+        StopSnakeGame();
+        UpdateNumberGameTitle();
+        RenderNumberGameQuestion(readPrompt: true);
+    }
+
+    private void UpdateNumberGameTitle()
+    {
+        NumberGameTitleText.Text = _numberGame.State.Mode switch
+        {
+            NumberGameMode.Count => "POLICZ KROPKI",
+            NumberGameMode.Find => "ZNAJD CYFRÊ",
+            NumberGameMode.Build => "U£Ó¯ LICZBÊ",
+            _ => "GRA LICZBOWA"
+        };
+    }
+
+    private void RenderNumberGameQuestion(bool readPrompt = false)
+    {
+        var state = _numberGame.State;
+        NumberGameChoices.Items.Clear();
+        NumberGameDotsPanel.Visibility = state.Quantity.HasValue ? Visibility.Visible : Visibility.Collapsed;
+        FillDotPanel(NumberGameDotsPanel, state.Quantity ?? 0);
+        NumberGameBuiltNumberText.Text = state.BuiltNumber;
+        NumberGamePromptText.Text = state.Prompt;
+        NumberGameStatusText.Text = string.Empty;
+        NumberGameScoreText.Text = $"Punkty: {state.Score}";
+        CheckNumberGameButton.Visibility = state.Mode == NumberGameMode.Build ? Visibility.Visible : Visibility.Collapsed;
+        ClearNumberGameButton.Visibility = state.Mode == NumberGameMode.Build ? Visibility.Visible : Visibility.Collapsed;
+        CheckNumberGameButton.IsEnabled = !state.IsComplete;
+        ClearNumberGameButton.IsEnabled = !state.IsComplete;
+        NextNumberGameButton.IsEnabled = state.IsComplete;
+
+        foreach (var choice in state.Choices)
+        {
+            AddNumberGameButton(choice.ToString(), choice);
+        }
+
+        if (readPrompt)
+        {
+            SpeakNumberGamePrompt(state.SpokenPrompt);
+        }
+    }
+
+    private void AddNumberGameButton(string label, int value)
+    {
+        var button = new Button
+        {
+            Content = label,
+            Tag = value,
+            Width = 92,
+            Height = 76,
+            Margin = new Thickness(7),
+            FontSize = 30,
+            Style = (Style)FindResource("PrimaryButton")
+        };
+        button.Click += NumberGameChoice_Click;
+        NumberGameChoices.Items.Add(button);
+    }
+
+    private void NumberGameChoice_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: int value })
+        {
+            return;
+        }
+
+        if (_numberGame.State.Mode == NumberGameMode.Build)
+        {
+            _numberGame.AppendDigit(value);
+            NumberGameBuiltNumberText.Text = _numberGame.State.BuiltNumber;
+            return;
+        }
+
+        ShowNumberGameAnswerResult(_numberGame.SubmitChoice(value));
+    }
+
+    private void CheckNumberGameAnswer_Click(object sender, RoutedEventArgs e)
+    {
+        var result = _numberGame.SubmitBuiltNumber();
+        if (result == NumberGameAnswerResult.Incomplete)
+        {
+            NumberGameStatusText.Text = "Wybierz dwie cyfry.";
+            NumberGameStatusText.Foreground = new SolidColorBrush(Color.FromRgb(204, 139, 43));
+            return;
+        }
+
+        ShowNumberGameAnswerResult(result);
+    }
+
+    private void ClearNumberGameAnswer_Click(object sender, RoutedEventArgs e)
+    {
+        _numberGame.ClearBuiltNumber();
+        NumberGameBuiltNumberText.Text = _numberGame.State.BuiltNumber;
+    }
+
+    private void ShowNumberGameAnswerResult(NumberGameAnswerResult result)
+    {
+        if (result != NumberGameAnswerResult.Correct)
+        {
+            NumberGameStatusText.Text = "Spróbuj jeszcze raz!";
+            NumberGameStatusText.Foreground = new SolidColorBrush(Color.FromRgb(207, 87, 100));
+            return;
+        }
+
+        var state = _numberGame.State;
+        NumberGameScoreText.Text = $"Punkty: {state.Score}";
+        NumberGameStatusText.Text = "Brawo! Dobra odpowiedŸ!";
+        NumberGameStatusText.Foreground = new SolidColorBrush(Color.FromRgb(38, 148, 105));
+        foreach (var button in NumberGameChoices.Items.OfType<Button>())
+        {
+            button.IsEnabled = false;
+        }
+        CheckNumberGameButton.IsEnabled = false;
+        NextNumberGameButton.IsEnabled = true;
+        if (_soundEnabled)
+        {
+            _instructionReader.Speak("Brawo! Dobra odpowiedŸ!");
+        }
+    }
+
+    private void NextNumberGameQuestion_Click(object sender, RoutedEventArgs e)
+    {
+        _numberGame.NextQuestion();
+        RenderNumberGameQuestion(readPrompt: true);
+    }
+
+    private void SpeakNumberGamePrompt(string text)
+    {
+        if (_soundEnabled)
+        {
+            _instructionReader.Stop();
+            _instructionReader.Speak(text);
+        }
     }
 
     private void MathMode_Click(object sender, RoutedEventArgs e)
@@ -768,6 +1562,7 @@ public partial class MainWindow : Window
         _soundEnabled = !_soundEnabled;
         SoundButton.Content = _soundEnabled ? "DŸwiêk: w³¹czony" : "DŸwiêk: wy³¹czony";
         MathSoundButton.Content = SoundButton.Content;
+        GameSoundButton.Content = SoundButton.Content;
         ListenButton.IsEnabled = _soundEnabled;
         MathReadNumberButton.IsEnabled = _soundEnabled;
         NumberQuizReadButton.IsEnabled = _soundEnabled;
@@ -793,6 +1588,24 @@ public partial class MainWindow : Window
         {
             ToggleFullScreen();
             e.Handled = true;
+        }
+        else if (GameZone.Visibility == Visibility.Visible
+            && SnakeGamePanel.Visibility == Visibility.Visible
+            && _snakeGame.State.IsRunning)
+        {
+            var requestedDirection = e.Key switch
+            {
+                Key.Up => (X: 0, Y: -1),
+                Key.Down => (X: 0, Y: 1),
+                Key.Left => (X: -1, Y: 0),
+                Key.Right => (X: 1, Y: 0),
+                _ => ((int X, int Y)?)null
+            };
+            if (requestedDirection is { } direction)
+            {
+                _snakeGame.SetDirection(direction.X, direction.Y);
+                e.Handled = true;
+            }
         }
         else if (e.Key == Key.Escape && WindowStyle == WindowStyle.None)
         {
@@ -834,6 +1647,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        StopSnakeGame();
+        _pictureMatchGeneration++;
         _categoryLoadCancellation?.Cancel();
         _imageLoadCancellation?.Cancel();
         _categoryLoadCancellation?.Dispose();

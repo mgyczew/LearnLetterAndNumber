@@ -23,8 +23,12 @@ namespace LetterGame
 
             var mathLearning = new MathLearningService(new MathQuestionGenerator());
             var wordPuzzle = new WordPuzzleSession();
+            var wordChainGame = new WordChainGameService();
+            var numberGame = new NumberGameSession();
+            var snakeGame = new SnakeGameSession();
+            var pictureMatchGame = new PictureMatchGameSession();
             var numberQuiz = new NumberQuizService();
-            var window = new MainWindow(catalog, new WindowsSpeechReader(), mathLearning, wordPuzzle, numberQuiz);
+            var window = new MainWindow(catalog, new WindowsSpeechReader(), mathLearning, wordPuzzle, numberQuiz, wordChainGame, numberGame, snakeGame, pictureMatchGame);
             MainWindow = window;
             window.Show();
         }
