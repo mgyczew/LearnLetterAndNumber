@@ -7,24 +7,21 @@ namespace LetterGame.Tests;
 public sealed class WordChainGameServiceTests
 {
     [Fact]
-    public void Starts_with_mat_and_tam_and_requires_both_words()
+    public void Starts_with_one_word_and_completes_after_a_single_answer()
     {
         var game = new WordChainGameService(new Random(1));
-        game.Start([]);
+        game.Start(CreateWords());
 
-        var firstState = game.State;
-        Assert.Equal(["MAT", "TAM"], firstState.Targets);
-        Assert.Equal(3, firstState.LetterBank.Count);
+        var state = game.State;
+        Assert.NotNull(state.TargetWord);
+        Assert.Equal(3, state.TargetWord.Text.Length);
+        Assert.NotNull(state.TargetWord.CategoryName);
+        Assert.Equal(state.TargetWord.Text.Length, state.LetterBank.Count);
         Assert.Equal(WordChainAnswerResult.Incomplete, game.SubmitAnswer());
 
-        SelectTarget(game, firstState.Targets[0]);
-        Assert.Equal(WordChainAnswerResult.FirstWordSolved, game.SubmitAnswer());
-        Assert.Equal("MAT", game.State.Answers[0]);
-        Assert.Equal(1, game.State.ActiveWordIndex);
-
-        SelectTarget(game, firstState.Targets[1]);
+        SelectTarget(game);
         Assert.Equal(WordChainAnswerResult.RoundSolved, game.SubmitAnswer());
-        Assert.Equal(2, game.State.Score);
+        Assert.Equal(1, game.State.Score);
         Assert.True(game.State.IsRoundComplete);
     }
 
@@ -32,12 +29,12 @@ public sealed class WordChainGameServiceTests
     public void Next_round_increases_the_word_length()
     {
         var game = new WordChainGameService(new Random(2));
-        game.Start([]);
+        game.Start(CreateWords());
         SolveRound(game);
 
         Assert.True(game.NextRound());
         Assert.Equal(2, game.State.Round);
-        Assert.Equal(4, game.State.Targets[0].Length);
+        Assert.Equal(4, game.State.TargetWord?.Text.Length);
         Assert.False(game.State.IsRoundComplete);
     }
 
@@ -45,7 +42,7 @@ public sealed class WordChainGameServiceTests
     public void Cannot_reuse_a_letter_tile_in_the_same_answer()
     {
         var game = new WordChainGameService(new Random(3));
-        game.Start([]);
+        game.Start(CreateWords());
 
         Assert.True(game.SelectLetter(0));
         Assert.False(game.SelectLetter(0));
@@ -55,15 +52,13 @@ public sealed class WordChainGameServiceTests
 
     private static void SolveRound(WordChainGameService game)
     {
-        var targets = game.State.Targets;
-        SelectTarget(game, targets[0]);
-        Assert.Equal(WordChainAnswerResult.FirstWordSolved, game.SubmitAnswer());
-        SelectTarget(game, targets[1]);
+        SelectTarget(game);
         Assert.Equal(WordChainAnswerResult.RoundSolved, game.SubmitAnswer());
     }
 
-    private static void SelectTarget(WordChainGameService game, string target)
+    private static void SelectTarget(WordChainGameService game)
     {
+        var target = game.State.TargetWord!.Text;
         var availableIndices = Enumerable.Range(0, game.State.LetterBank.Count).ToList();
         foreach (var letter in target)
         {
@@ -72,4 +67,12 @@ public sealed class WordChainGameServiceTests
             Assert.True(game.SelectLetter(index));
         }
     }
+
+    private static WordEntry[] CreateWords() =>
+    [
+        new("LAS", "Miejsce pe³ne drzew", "??", CategoryName: "Przyroda"),
+        new("KOT", "Zwierzê", "??", CategoryName: "Zwierzêta"),
+        new("PIES", "Zwierzê, które szczeka", "??", CategoryName: "Zwierzêta"),
+        new("MAMA", "Bliska osoba", "??", CategoryName: "Rodzina")
+    ];
 }

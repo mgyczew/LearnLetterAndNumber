@@ -323,7 +323,7 @@
                     <Border Width="340" Height="260" Margin="12" Padding="24" Background="White" CornerRadius="26">
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="SŁOWO PO SŁOWIE" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Ink}" />
-                            <TextBlock Text="Ułóż dwa słowa z tych samych liter. Zaczynasz od 3 liter, a kolejne rundy są trudniejsze." Margin="0,12,0,22" FontSize="17" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+                            <TextBlock Text="Ułóż jedno krótkie słowo. Pomogą Ci obrazek i nazwa kategorii." Margin="0,12,0,22" FontSize="17" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
                             <Button Content="Zagraj" Click="StartWordChain_Click" Style="{StaticResource PrimaryButton}" />
                         </StackPanel>
                     </Border>
@@ -339,6 +339,27 @@
                             <TextBlock Text="DOPASUJ OBRAZKI" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Ink}" />
                             <TextBlock Text="Dopasuj obrazki do nazw ułożonych z rozsypanych liter." Margin="0,12,0,22" FontSize="17" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
                             <Button Content="Zagraj" Click="StartPictureMatch_Click" Style="{StaticResource PrimaryButton}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Width="340" Height="260" Margin="12" Padding="24" Background="White" CornerRadius="26">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="RUCHOMY ALFABET" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Ink}" />
+                            <TextBlock Text="Układaj słowa z liter na trzech poziomach trudności." Margin="0,12,0,22" FontSize="17" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+                            <Button Content="Zagraj" Click="StartAlphabetGame_Click" Style="{StaticResource PrimaryButton}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Width="340" Height="260" Margin="12" Padding="24" Background="White" CornerRadius="26">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="POSZUKIWANIE SKARBÓW" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Ink}" />
+                            <TextBlock Text="Czytaj słowa i szukaj pasujących przedmiotów w domu." Margin="0,12,0,22" FontSize="17" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+                            <Button Content="Zagraj" Click="StartTreasureHunt_Click" Style="{StaticResource PrimaryButton}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Width="340" Height="260" Margin="12" Padding="24" Background="White" CornerRadius="26">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="SŁOWNE BINGO" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Ink}" />
+                            <TextBlock Text="Słuchaj losowanych słów i zaznaczaj je na planszy." Margin="0,12,0,22" FontSize="17" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+                            <Button Content="Zagraj" Click="StartWordBingo_Click" Style="{StaticResource PrimaryButton}" />
                         </StackPanel>
                     </Border>
                     <Border Width="340" Height="260" Margin="12" Padding="24" Background="White" CornerRadius="26">
@@ -384,16 +405,18 @@
                             <Button Grid.Column="1" Content="Wróć do gier" Click="BackToGameMenu_Click" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Right" />
                         </Grid>
                         <StackPanel Grid.Row="1" VerticalAlignment="Center">
-                            <TextBlock Text="UŁÓŻ SŁOWO Z LITER" HorizontalAlignment="Center" Margin="0,0,0,14" FontSize="13" FontWeight="Bold" Foreground="{StaticResource Muted}" />
-                            <TextBlock x:Name="WordChainBankHint" Text="Ułóż dwa słowa z tych samych liter." HorizontalAlignment="Center" Margin="0,0,0,8" FontSize="15" Foreground="{StaticResource Muted}" />
-                            <TextBlock Text="SŁOWO 1" HorizontalAlignment="Center" Margin="0,4,0,0" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Muted}" />
+                            <TextBlock Text="UŁÓŻ SŁOWO Z LITER" HorizontalAlignment="Center" Margin="0,0,0,8" FontSize="13" FontWeight="Bold" Foreground="{StaticResource Muted}" />
+                            <Border Width="220" Height="138" Margin="0,0,0,8" Background="#F4F6FC" CornerRadius="20" Padding="8">
+                                <Grid>
+                                    <TextBlock x:Name="WordChainEmojiText" Text="🐾" FontSize="64" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Image x:Name="WordChainImage" Stretch="Uniform" MaxWidth="204" MaxHeight="122" Visibility="Collapsed" ImageFailed="WordChainImage_ImageFailed" />
+                                </Grid>
+                            </Border>
+                            <TextBlock x:Name="WordChainImageCreditText" Margin="0,0,0,4" HorizontalAlignment="Center" FontSize="11" Foreground="{StaticResource Muted}" Visibility="Collapsed" />
+                            <TextBlock x:Name="WordChainCategoryText" Text="Kategoria" HorizontalAlignment="Center" FontSize="17" FontWeight="Bold" Foreground="{StaticResource Accent}" />
+                            <TextBlock x:Name="WordChainClueText" Text="Podpowiedź" HorizontalAlignment="Center" Margin="0,2,0,5" FontSize="15" Foreground="{StaticResource Muted}" TextWrapping="Wrap" TextAlignment="Center" />
+                            <TextBlock x:Name="WordChainBankHint" Text="Ułóż nazwę pasującą do obrazka." HorizontalAlignment="Center" Margin="0,0,0,4" FontSize="15" Foreground="{StaticResource Muted}" />
                             <ItemsControl x:Name="WordChainAnswerPanel" HorizontalAlignment="Center">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate><WrapPanel HorizontalAlignment="Center" /></ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                            </ItemsControl>
-                            <TextBlock Text="SŁOWO 2" HorizontalAlignment="Center" Margin="0,4,0,0" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Muted}" />
-                            <ItemsControl x:Name="WordChainSecondAnswerPanel" HorizontalAlignment="Center">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate><WrapPanel HorizontalAlignment="Center" /></ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
@@ -534,6 +557,134 @@
                                 <Button x:Name="CheckNumberGameButton" Content="Sprawdź" Click="CheckNumberGameAnswer_Click" Style="{StaticResource PrimaryButton}" Visibility="Collapsed" />
                                 <Button x:Name="NextNumberGameButton" Content="Następne" Click="NextNumberGameQuestion_Click" Style="{StaticResource PrimaryButton}" Margin="10,0,0,0" IsEnabled="False" />
                             </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <Border x:Name="AlphabetGamePanel" Padding="28" Background="White" CornerRadius="28" Visibility="Collapsed">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="RUCHOMY ALFABET" FontSize="13" FontWeight="Bold" Foreground="{StaticResource Accent}" />
+                                <TextBlock Text="Ułóż słowo z ruchomych liter" Margin="0,5,0,0" FontSize="24" FontWeight="Bold" Foreground="{StaticResource Ink}" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Wróć do gier" Click="BackToGameMenu_Click" Style="{StaticResource SecondaryButton}" />
+                        </Grid>
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="8">
+                                <WrapPanel HorizontalAlignment="Center" Margin="0,0,0,12">
+                                    <Button Content="Poziom 1" Tag="1" Click="AlphabetLevel_Click" Style="{StaticResource SecondaryButton}" Margin="4" />
+                                    <Button Content="Poziom 2" Tag="2" Click="AlphabetLevel_Click" Style="{StaticResource SecondaryButton}" Margin="4" />
+                                    <Button Content="Poziom 3" Tag="3" Click="AlphabetLevel_Click" Style="{StaticResource SecondaryButton}" Margin="4" />
+                                </WrapPanel>
+                                <TextBlock Text="Poziom 1: krótkie słowa · poziom 2: trudniejsze głoski · poziom 3: dłuższe słowa. „Sz”, „cz”, „rz” i „ch” są osobnymi kafelkami." MaxWidth="820" Margin="0,0,0,10" HorizontalAlignment="Center" FontSize="14" Foreground="{StaticResource Muted}" TextWrapping="Wrap" TextAlignment="Center" />
+                                <Border Width="180" Height="110" Background="#F4F6FC" CornerRadius="20" Padding="8">
+                                    <TextBlock x:Name="AlphabetEmojiText" Text="🐾" FontSize="58" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock x:Name="AlphabetCategoryText" Text="Kategoria" Margin="0,8,0,0" HorizontalAlignment="Center" FontSize="17" FontWeight="Bold" Foreground="{StaticResource Accent}" />
+                                <TextBlock x:Name="AlphabetClueText" Text="Podpowiedź" Margin="0,2,0,8" HorizontalAlignment="Center" FontSize="16" Foreground="{StaticResource Muted}" TextWrapping="Wrap" TextAlignment="Center" />
+                                <ItemsControl x:Name="AlphabetAnswerPanel" HorizontalAlignment="Center">
+                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel HorizontalAlignment="Center" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                                <TextBlock x:Name="AlphabetStatusText" Margin="0,8,0,4" HorizontalAlignment="Center" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource Muted}" />
+                                <ItemsControl x:Name="AlphabetLetterBank" HorizontalAlignment="Center">
+                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel HorizontalAlignment="Center" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ScrollViewer>
+                        <Grid Grid.Row="2" Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <TextBlock x:Name="AlphabetScoreText" Text="Punkty: 0" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                            <WrapPanel Grid.Column="1" HorizontalAlignment="Right">
+                                <Button Content="Odsłuchaj" Click="ListenAlphabetWord_Click" Style="{StaticResource SecondaryButton}" Margin="3" />
+                                <Button Content="Cofnij" Click="UndoAlphabetLetter_Click" Style="{StaticResource SecondaryButton}" Margin="3" />
+                                <Button Content="Wyczyść" Click="ClearAlphabetLetters_Click" Style="{StaticResource SecondaryButton}" Margin="3" />
+                                <Button x:Name="CheckAlphabetButton" Content="Sprawdź" Click="CheckAlphabetWord_Click" Style="{StaticResource PrimaryButton}" Margin="3" />
+                                <Button x:Name="NextAlphabetButton" Content="Następne słowo" Click="NextAlphabetWord_Click" Style="{StaticResource PrimaryButton}" Margin="3" />
+                            </WrapPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <Border x:Name="TreasureHuntPanel" Padding="30" Background="White" CornerRadius="28" Visibility="Collapsed">
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="POSZUKIWANIE SKARBÓW" FontSize="13" FontWeight="Bold" Foreground="{StaticResource Accent}" />
+                                <TextBlock Text="Znajdź przedmiot w domu" Margin="0,5,0,0" FontSize="24" FontWeight="Bold" Foreground="{StaticResource Ink}" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Wróć do gier" Click="BackToGameMenu_Click" Style="{StaticResource SecondaryButton}" />
+                        </Grid>
+                        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock x:Name="TreasureProgressText" Text="Skarb 1 z 12" HorizontalAlignment="Center" FontSize="16" Foreground="{StaticResource Muted}" />
+                            <TextBlock x:Name="TreasureEmojiText" Text="🏠" Margin="0,8,0,0" HorizontalAlignment="Center" FontSize="76" />
+                            <TextBlock x:Name="TreasureWordText" Text="STÓŁ" Margin="0,4,0,0" HorizontalAlignment="Center" FontSize="46" FontWeight="Bold" Foreground="{StaticResource Accent}" />
+                            <TextBlock Text="Przeczytaj słowo, przyklej karteczkę na przedmiocie i wróć tutaj." Margin="0,4,0,18" HorizontalAlignment="Center" FontSize="18" Foreground="{StaticResource Muted}" TextWrapping="Wrap" TextAlignment="Center" />
+                            <Border MaxWidth="720" Padding="18,12" Background="#F4F6FC" CornerRadius="16">
+                                <StackPanel>
+                                    <TextBlock Text="MISJA SPECJALNA" HorizontalAlignment="Center" FontSize="12" FontWeight="Bold" Foreground="{StaticResource Accent}" />
+                                    <TextBlock x:Name="TreasureMissionText" Text="Weź kubek i połóż go na stole." Margin="0,5,0,0" HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource Ink}" />
+                                </StackPanel>
+                            </Border>
+                            <TextBlock x:Name="TreasureStatusText" Margin="0,14,0,0" HorizontalAlignment="Center" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource Muted}" />
+                        </StackPanel>
+                        <Grid Grid.Row="2" Margin="0,14,0,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <TextBlock x:Name="TreasureFoundCountText" Text="Znalezione: 0" VerticalAlignment="Center" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                            <WrapPanel Grid.Column="1" HorizontalAlignment="Right">
+                                <Button Content="Odsłuchaj" Click="ListenTreasureWord_Click" Style="{StaticResource SecondaryButton}" Margin="3" />
+                                <Button Content="Inna misja" Click="NextTreasureMission_Click" Style="{StaticResource SecondaryButton}" Margin="3" />
+                                <Button Content="Pomiń" Click="SkipTreasureWord_Click" Style="{StaticResource SecondaryButton}" Margin="3" />
+                                <Button x:Name="FoundTreasureButton" Content="Znalazłem skarb" Click="MarkTreasureFound_Click" Style="{StaticResource PrimaryButton}" Margin="3" />
+                            </WrapPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <Border x:Name="WordBingoPanel" Padding="28" Background="White" CornerRadius="28" Visibility="Collapsed">
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="SŁOWNE BINGO" FontSize="13" FontWeight="Bold" Foreground="{StaticResource Accent}" />
+                                <TextBlock Text="Słuchaj i zaznaczaj słowa" Margin="0,5,0,0" FontSize="24" FontWeight="Bold" Foreground="{StaticResource Ink}" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Wróć do gier" Click="BackToGameMenu_Click" Style="{StaticResource SecondaryButton}" />
+                        </Grid>
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <StackPanel HorizontalAlignment="Center" Margin="8">
+                                <TextBlock Text="Wybierz planszę, losuj słowo i kliknij pasujące pole. Zaznacz trzy pola w rzędzie, kolumnie lub po przekątnej." MaxWidth="800" Margin="0,0,0,10" HorizontalAlignment="Center" FontSize="15" Foreground="{StaticResource Muted}" TextWrapping="Wrap" TextAlignment="Center" />
+                                <WrapPanel x:Name="WordBingoBoardChoices" HorizontalAlignment="Center" Margin="0,0,0,8">
+                                    <Button Content="Plansza 1" Tag="1" Click="SelectWordBingoBoard_Click" Style="{StaticResource SecondaryButton}" Margin="3" />
+                                    <Button Content="Plansza 2" Tag="2" Click="SelectWordBingoBoard_Click" Style="{StaticResource SecondaryButton}" Margin="3" />
+                                    <Button Content="Plansza 3" Tag="3" Click="SelectWordBingoBoard_Click" Style="{StaticResource SecondaryButton}" Margin="3" />
+                                    <Button Content="Plansza 4" Tag="4" Click="SelectWordBingoBoard_Click" Style="{StaticResource SecondaryButton}" Margin="3" />
+                                </WrapPanel>
+                                <TextBlock Text="LOSOWANE SŁOWO" HorizontalAlignment="Center" FontSize="12" FontWeight="Bold" Foreground="{StaticResource Muted}" />
+                                <TextBlock x:Name="WordBingoCalledWordText" Text="Naciśnij „Losuj słowo”" Margin="0,3,0,8" HorizontalAlignment="Center" FontSize="34" FontWeight="Bold" Foreground="{StaticResource Accent}" />
+                                <UniformGrid x:Name="WordBingoBoard" Rows="3" Columns="3" HorizontalAlignment="Center" />
+                                <TextBlock x:Name="WordBingoStatusText" Text="" Margin="0,10,0,0" HorizontalAlignment="Center" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource Muted}" />
+                            </StackPanel>
+                        </ScrollViewer>
+                        <Grid Grid.Row="2" Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <TextBlock x:Name="WordBingoProgressText" Text="Plansza 1 · słowo 0 z 14" VerticalAlignment="Center" FontSize="17" Foreground="{StaticResource Muted}" />
+                            <WrapPanel Grid.Column="1" HorizontalAlignment="Right">
+                                <Button Content="Odsłuchaj" Click="ListenBingoCall_Click" Style="{StaticResource SecondaryButton}" Margin="3" />
+                                <Button x:Name="NextBingoCallButton" Content="Losuj słowo" Click="NextBingoCall_Click" Style="{StaticResource PrimaryButton}" Margin="3" />
+                            </WrapPanel>
                         </Grid>
                     </Grid>
                 </Border>

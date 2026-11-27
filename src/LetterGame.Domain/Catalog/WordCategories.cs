@@ -2,8 +2,10 @@ using LetterGame.Domain.Models;
 
 namespace LetterGame.Domain.Catalog;
 
+/// <summary>Udostêpnia sta³e kategorie i s³owa dostêpne bez po³¹czenia z internetem.</summary>
 public static class WordCategories
 {
+    /// <summary>Wszystkie domyœlne kategorie wykorzystywane przez aplikacjê.</summary>
     public static IReadOnlyList<WordCategory> All { get; } =
     [
         Create("Owoce", "Kategoria:Owoce", "OWOCE", "fruit", "Owoc", "JAB£KO", "GRUSZKA", "ŒLIWKA", "WIŒNIA", "CZEREŒNIA", "MORELA", "BRZOSKWINIA", "BANAN", "POMARAÑCZA", "CYTRYNA", "LIMONKA", "MANDARYNKA", "ANANAS", "ARBUZ", "MELON", "WINOGRONA", "MALINA", "JE¯YNA", "BORÓWKA", "TRUSKAWKA", "PORZECZKA", "AGREST", "KIWI", "MANGO", "PAPAJA", "GRANAT", "FIGA", "DAKTYL", "KOKOS", "PIGWA"),
@@ -19,11 +21,23 @@ public static class WordCategories
 
     private static WordCategory Create(string name, string wikiCategory, string emoji, string imageSearchHint, string cluePrefix, params string[] words)
     {
+        var categoryEmoji = name switch
+        {
+            "Owoce" => "??",
+            "Warzywa" => "??",
+            "Zwierzêta" => "??",
+            "Kolory" => "??",
+            "Kszta³ty" => "??",
+            "Jedzenie" => "???",
+            "Dom" => "??",
+            "Przyroda" => "??",
+            _ => emoji
+        };
         var entries = words
-            .Select(word => new WordEntry(word, $"{cluePrefix} z kategorii {name.ToLowerInvariant()}", emoji, ImageSearchTerm: $"{word} {imageSearchHint}"))
+            .Select(word => new WordEntry(word, $"{cluePrefix} z kategorii {name.ToLowerInvariant()}", categoryEmoji, ImageSearchTerm: $"{word} {imageSearchHint}", CategoryName: name))
             .ToArray();
 
-        return new WordCategory(name, wikiCategory, emoji, imageSearchHint, entries);
+        return new WordCategory(name, wikiCategory, categoryEmoji, imageSearchHint, entries);
     }
 
     private static WordCategory CreateFlags()
@@ -42,11 +56,12 @@ public static class WordCategories
             .Select(country => new WordEntry(
                 country.Name,
                 $"Flaga pañstwa {country.Name.ToLowerInvariant()}",
-                "FLAGA",
+                "???",
                 $"https://flagcdn.com/w640/{country.Code}.png",
-                "https://flagcdn.com/"))
+                "https://flagcdn.com/",
+                CategoryName: "Flagi"))
             .ToArray();
 
-        return new WordCategory("Flagi", "Kategoria:Flagi pañstw œwiata", "FLAGA", "national flag", words);
+        return new WordCategory("Flagi", "Kategoria:Flagi pañstw œwiata", "???", "national flag", words);
     }
 }

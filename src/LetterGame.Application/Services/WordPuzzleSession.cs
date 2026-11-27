@@ -3,6 +3,7 @@ using LetterGame.Domain.Models;
 
 namespace LetterGame.Application.Services;
 
+/// <summary>Przechowuje wybór liter i sprawdza odpowiedŸ w podstawowej grze s³ownej.</summary>
 public sealed class WordPuzzleSession
 {
     private readonly List<int> _selectedLetterIndices = [];

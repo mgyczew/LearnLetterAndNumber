@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\LetterGame.Domain\LetterGame.Domain.csproj" />
     <ProjectReference Include="..\..\src\LetterGame.Application\LetterGame.Application.csproj" />
+    <ProjectReference Include="..\..\src\LetterGame.Infrastructure\LetterGame.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -3,6 +3,7 @@ using LetterGame.Domain.Services;
 
 namespace LetterGame.Application.Services;
 
+/// <summary>Tworzy pytania quizowe o zapisie liczb cyframi i s³ownie.</summary>
 public sealed class NumberQuizService(Random? random = null)
 {
     public const int MaximumNumber = 20;

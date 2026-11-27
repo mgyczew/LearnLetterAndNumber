@@ -4,9 +4,10 @@ using LetterGame.Application.Contracts;
 
 namespace LetterGame.Infrastructure;
 
-public sealed class WindowsSpeechReader : IInstructionReader
+/// <summary>Odczytuje tekst na g³os przy u¿yciu Windows SAPI, jeœli synteza jest dostêpna.</summary>
+public sealed class WindowsSpeechReader : IInstructionReader, IDisposable
 {
-    private readonly object? _voice;
+    private object? _voice;
 
     public WindowsSpeechReader()
     {
@@ -67,6 +68,31 @@ public sealed class WindowsSpeechReader : IInstructionReader
         }
         catch (TargetInvocationException)
         {
+        }
+    }
+
+    /// <summary>Zatrzymuje odczyt i zwalnia obiekt COM u¿ywany przez SAPI.</summary>
+    public void Dispose()
+    {
+        if (_voice is null)
+        {
+            return;
+        }
+
+        Stop();
+        try
+        {
+            if (OperatingSystem.IsWindows() && Marshal.IsComObject(_voice))
+            {
+                Marshal.FinalReleaseComObject(_voice);
+            }
+        }
+        catch (COMException)
+        {
+        }
+        finally
+        {
+            _voice = null;
         }
     }
 

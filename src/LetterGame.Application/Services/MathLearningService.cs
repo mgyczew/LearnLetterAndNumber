@@ -3,6 +3,7 @@ using LetterGame.Domain.Services;
 
 namespace LetterGame.Application.Services;
 
+/// <summary>Koordynuje lekcjê liczb i dzia³añ oraz zapamiêtuje wyniki ucznia.</summary>
 public sealed class MathLearningService(MathQuestionGenerator questionGenerator)
 {
     private readonly Dictionary<MathLesson, int> _correctAnswers = [];

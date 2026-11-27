@@ -3,6 +3,7 @@ using LetterGame.Domain.Services;
 
 namespace LetterGame.Application.Models;
 
+/// <summary>Przygotowuje zadanie matematyczne w formie tekstowej i g³osowej dla interfejsu.</summary>
 public sealed record MathQuestionViewModel(
     string QuestionText,
     string SpokenQuestion,

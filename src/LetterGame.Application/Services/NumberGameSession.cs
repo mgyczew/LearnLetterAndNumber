@@ -3,6 +3,7 @@ using LetterGame.Domain.Services;
 
 namespace LetterGame.Application.Services;
 
+/// <summary>Obs³uguje tryby liczenia obiektów, rozpoznawania cyfr i budowania liczby.</summary>
 public sealed class NumberGameSession(Random? random = null)
 {
     private readonly Random _random = random ?? new Random();

@@ -3,6 +3,7 @@ using LetterGame.Domain.Models;
 
 namespace LetterGame.Application.Services;
 
+/// <summary>Obs³uguje zestaw zagadek, w których gracz uk³ada nazwy pokazanych obrazków.</summary>
 public sealed class PictureMatchGameSession(Random? random = null)
 {
     private readonly Random _random = random ?? new Random();
@@ -24,9 +25,22 @@ public sealed class PictureMatchGameSession(Random? random = null)
             _score = 0;
         }
 
-        var selectedWords = words
+        var candidates = words
             .Where(word => word.Text.Length is >= 3 and <= 9 && word.Text.All(char.IsLetter))
             .DistinctBy(word => word.Text, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var previousWords = _puzzles
+            .Select(puzzle => puzzle.Word.Text)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var unseenCandidates = candidates
+            .Where(word => !previousWords.Contains(word.Text))
+            .ToArray();
+        if (unseenCandidates.Length >= Math.Min(3, candidates.Length))
+        {
+            candidates = unseenCandidates;
+        }
+
+        var selectedWords = candidates
             .OrderBy(_ => _random.Next())
             .Take(3)
             .ToArray();

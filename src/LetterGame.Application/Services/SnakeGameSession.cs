@@ -3,6 +3,7 @@ using LetterGame.Domain.Models;
 
 namespace LetterGame.Application.Services;
 
+/// <summary>Przechowuje stan wê¿yka, ruch, kolizje i postêp zbierania liter s³owa.</summary>
 public sealed class SnakeGameSession(Random? random = null)
 {
     public const int Columns = 30;

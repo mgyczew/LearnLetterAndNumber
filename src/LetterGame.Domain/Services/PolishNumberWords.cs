@@ -1,5 +1,6 @@
 namespace LetterGame.Domain.Services;
 
+/// <summary>Konwertuje liczby ca³kowite od 0 do 1000 na polski zapis s³owny.</summary>
 public static class PolishNumberWords
 {
     private static readonly string[] Units = ["", "jeden", "dwa", "trzy", "cztery", "piêæ", "szeœæ", "siedem", "osiem", "dziewiêæ"];
@@ -7,6 +8,7 @@ public static class PolishNumberWords
     private static readonly string[] Tens = ["", "", "dwadzieœcia", "trzydzieœci", "czterdzieœci", "piêædziesi¹t", "szeœædziesi¹t", "siedemdziesi¹t", "osiemdziesi¹t", "dziewiêædziesi¹t"];
     private static readonly string[] Hundreds = ["", "sto", "dwieœcie", "trzysta", "czterysta", "piêæset", "szeœæset", "siedemset", "osiemset", "dziewiêæset"];
 
+    /// <summary>Zwraca polsk¹ nazwê liczby z obs³ugiwanego zakresu.</summary>
     public static string ToWords(int number)
     {
         if (number is < 0 or > 1000)

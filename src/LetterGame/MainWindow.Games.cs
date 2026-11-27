@@ -1,5 +1,6 @@
 using System.Windows.Controls;
 using System.Windows.Shapes;
+using LetterGame.Application.Services;
 using LetterGame.Domain.Models;
 
 namespace LetterGame;
@@ -8,6 +9,14 @@ public partial class MainWindow
 {
     private IReadOnlyList<WordEntry> _gameWords = [];
     private int _wordChainSessionVersion;
+    private int _wordChainImageVersion;
+    private string? _wordChainImageKey;
+    private int _numberGameQuestionVersion;
+    private int _numberQuizQuestionVersion;
+    private int _alphabetGameVersion;
+    private readonly AlphabetGameSession _alphabetGame;
+    private readonly TreasureHuntGameSession _treasureHuntGame;
+    private readonly WordBingoGameSession _wordBingoGame;
     private readonly System.Windows.Threading.DispatcherTimer _snakeTimer = new() { Interval = TimeSpan.FromMilliseconds(150) };
     private int _snakeGameVersion;
     private const int SnakeCellSize = 24;
@@ -18,6 +27,7 @@ public partial class MainWindow
         public WordEntry Word { get; } = word;
         public Image Image { get; set; } = null!;
         public TextBlock EmojiText { get; set; } = null!;
+        public TextBlock ImageCreditText { get; set; } = null!;
         public ItemsControl AnswerPanel { get; set; } = null!;
         public ItemsControl LetterBank { get; set; } = null!;
         public TextBlock StatusText { get; set; } = null!;

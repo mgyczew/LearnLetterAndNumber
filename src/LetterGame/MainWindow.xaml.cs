@@ -18,6 +18,7 @@ using LetterGame.Domain.Services;
 
 namespace LetterGame;
 
+/// <summary>Prezentuje ekrany aplikacji i przekazuje akcje u¿ytkownika do sesji Application.</summary>
 public partial class MainWindow : Window
 {
     private static readonly IReadOnlyDictionary<string, Color> ColorSwatches = new Dictionary<string, Color>(StringComparer.OrdinalIgnoreCase)
@@ -77,7 +78,10 @@ public partial class MainWindow : Window
         WordChainGameService wordChainGame,
         NumberGameSession numberGame,
         SnakeGameSession snakeGame,
-        PictureMatchGameSession pictureMatchGame)
+        PictureMatchGameSession pictureMatchGame,
+        AlphabetGameSession alphabetGame,
+        TreasureHuntGameSession treasureHuntGame,
+        WordBingoGameSession wordBingoGame)
     {
         InitializeComponent();
         _catalog = catalog;
@@ -89,6 +93,9 @@ public partial class MainWindow : Window
         _numberGame = numberGame;
         _snakeGame = snakeGame;
         _pictureMatchGame = pictureMatchGame;
+        _alphabetGame = alphabetGame;
+        _treasureHuntGame = treasureHuntGame;
+        _wordBingoGame = wordBingoGame;
         _snakeTimer.Tick += SnakeTimer_Tick;
         CategorySelector.ItemsSource = _catalog.Categories;
         CategorySelector.SelectedIndex = 0;
@@ -97,6 +104,8 @@ public partial class MainWindow : Window
     private void OpenMath_Click(object sender, RoutedEventArgs e)
     {
         _displayVersion++;
+        _numberGameQuestionVersion++;
+        _numberQuizQuestionVersion++;
         _instructionReader.Stop();
         StopSnakeGame();
         WordZone.Visibility = Visibility.Collapsed;
@@ -117,6 +126,8 @@ public partial class MainWindow : Window
     private void OpenWords_Click(object sender, RoutedEventArgs e)
     {
         _mathQuestionVersion++;
+        _numberGameQuestionVersion++;
+        _numberQuizQuestionVersion++;
         _instructionReader.Stop();
         StopSnakeGame();
         MathZone.Visibility = Visibility.Collapsed;
@@ -128,6 +139,8 @@ public partial class MainWindow : Window
     {
         _displayVersion++;
         _mathQuestionVersion++;
+        _numberGameQuestionVersion++;
+        _numberQuizQuestionVersion++;
         _instructionReader.Stop();
         StopSnakeGame();
         WordZone.Visibility = Visibility.Collapsed;
@@ -138,6 +151,7 @@ public partial class MainWindow : Window
         SnakeGamePanel.Visibility = Visibility.Collapsed;
         PictureMatchPanel.Visibility = Visibility.Collapsed;
         NumberGamePanel.Visibility = Visibility.Collapsed;
+        HideWordActivityPanels();
     }
 
     private void StartWordChain_Click(object sender, RoutedEventArgs e)
@@ -147,6 +161,7 @@ public partial class MainWindow : Window
         _wordChainSessionVersion++;
         WordChainScoreText.Text = "Punkty: 0";
         GameMenuPanel.Visibility = Visibility.Collapsed;
+        HideWordActivityPanels();
         WordChainPanel.Visibility = Visibility.Visible;
         SnakeGamePanel.Visibility = Visibility.Collapsed;
         PictureMatchPanel.Visibility = Visibility.Collapsed;
@@ -158,12 +173,14 @@ public partial class MainWindow : Window
     private void BackToGameMenu_Click(object sender, RoutedEventArgs e)
     {
         _wordChainSessionVersion++;
+        _numberGameQuestionVersion++;
         _pictureMatchGeneration++;
         StopSnakeGame();
         WordChainPanel.Visibility = Visibility.Collapsed;
         SnakeGamePanel.Visibility = Visibility.Collapsed;
         PictureMatchPanel.Visibility = Visibility.Collapsed;
         NumberGamePanel.Visibility = Visibility.Collapsed;
+        HideWordActivityPanels();
         GameMenuPanel.Visibility = Visibility.Visible;
     }
 
@@ -171,6 +188,7 @@ public partial class MainWindow : Window
     {
         _gameWords = _catalog.GetGameWords(_words);
         GameMenuPanel.Visibility = Visibility.Collapsed;
+        HideWordActivityPanels();
         WordChainPanel.Visibility = Visibility.Collapsed;
         PictureMatchPanel.Visibility = Visibility.Collapsed;
         NumberGamePanel.Visibility = Visibility.Collapsed;
@@ -348,6 +366,7 @@ public partial class MainWindow : Window
 
         StopSnakeGame();
         GameMenuPanel.Visibility = Visibility.Collapsed;
+        HideWordActivityPanels();
         WordChainPanel.Visibility = Visibility.Collapsed;
         SnakeGamePanel.Visibility = Visibility.Collapsed;
         PictureMatchPanel.Visibility = Visibility.Visible;
@@ -390,16 +409,31 @@ public partial class MainWindow : Window
             Stretch = Stretch.Uniform,
             MaxWidth = 250,
             MaxHeight = 120,
+            Tag = GetImageCacheKey(puzzle.Word),
             Visibility = Visibility.Collapsed
         };
         puzzle.Image.ImageFailed += (_, _) =>
         {
             puzzle.Image.Visibility = Visibility.Collapsed;
             puzzle.EmojiText.Visibility = Visibility.Visible;
+            puzzle.ImageCreditText.Visibility = Visibility.Collapsed;
+            if (puzzle.Image.Tag is string imageCacheKey)
+            {
+                _imageCache[imageCacheKey] = null;
+            }
         };
         pictureArea.Children.Add(puzzle.EmojiText);
         pictureArea.Children.Add(puzzle.Image);
         cardContent.Children.Add(pictureArea);
+        puzzle.ImageCreditText = new TextBlock
+        {
+            Margin = new Thickness(0, 0, 0, 6),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            FontSize = 11,
+            Foreground = new SolidColorBrush(Color.FromRgb(119, 129, 154)),
+            Visibility = Visibility.Collapsed
+        };
+        cardContent.Children.Add(puzzle.ImageCreditText);
         cardContent.Children.Add(new TextBlock
         {
             Text = puzzle.Word.Clue,
@@ -546,6 +580,11 @@ public partial class MainWindow : Window
     private void CheckPictureMatchPuzzle(PictureMatchPuzzle puzzle)
     {
         var result = _pictureMatchGame.SubmitAnswer(puzzle.Word.Text);
+        if (result == PictureMatchAnswerResult.AlreadySolved)
+        {
+            return;
+        }
+
         if (result == PictureMatchAnswerResult.Incomplete)
         {
             puzzle.StatusText.Text = "Wybierz wszystkie litery.";
@@ -564,9 +603,28 @@ public partial class MainWindow : Window
         puzzle.StatusText.Foreground = new SolidColorBrush(Color.FromRgb(38, 148, 105));
         PictureMatchScoreText.Text = $"Punkty: {_pictureMatchGame.State.Score}";
         RefreshPictureMatchPuzzle(puzzle);
-        if (_pictureMatchGame.State.Puzzles.All(item => item.IsSolved))
+        var nextPuzzleState = _pictureMatchGame.State.Puzzles.FirstOrDefault(item => !item.IsSolved);
+        if (nextPuzzleState is null)
         {
-            PictureMatchStatusText.Text = "Œwietnie! Wszystkie obrazki dopasowane.";
+            PictureMatchStatusText.Text = "Œwietnie! Wszystkie obrazki dopasowane. Nastêpna plansza za chwilê.";
+            _ = AdvancePictureMatchBoardAsync(_pictureMatchGeneration);
+            return;
+        }
+
+        PictureMatchStatusText.Text = $"Nastêpne s³owo: {nextPuzzleState.Word.Text}";
+        var nextPuzzle = _pictureMatchPuzzles.FirstOrDefault(item =>
+            string.Equals(item.Word.Text, nextPuzzleState.Word.Text, StringComparison.OrdinalIgnoreCase));
+        nextPuzzle?.LetterBank.Items.OfType<Button>().FirstOrDefault()?.Focus();
+    }
+
+    private async Task AdvancePictureMatchBoardAsync(int generation)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        if (generation == _pictureMatchGeneration
+            && PictureMatchPanel.Visibility == Visibility.Visible
+            && _pictureMatchGame.State.Puzzles.All(item => item.IsSolved))
+        {
+            StartPictureMatch_Click(this, new RoutedEventArgs());
         }
     }
 
@@ -574,15 +632,16 @@ public partial class MainWindow : Window
     {
         try
         {
+            var imageCacheKey = GetImageCacheKey(puzzle.Word);
             WordImage? image;
-            if (_imageCache.TryGetValue(puzzle.Word.Text, out var cachedImage))
+            if (_imageCache.TryGetValue(imageCacheKey, out var cachedImage))
             {
                 image = cachedImage;
             }
             else
             {
                 image = await _catalog.GetImageAsync(puzzle.Word);
-                _imageCache[puzzle.Word.Text] = image;
+                _imageCache[imageCacheKey] = image;
             }
 
             if (generation != _pictureMatchGeneration || image is null)
@@ -593,6 +652,7 @@ public partial class MainWindow : Window
             puzzle.Image.Source = new BitmapImage(new Uri(image.ImageUrl, UriKind.Absolute));
             puzzle.Image.Visibility = Visibility.Visible;
             puzzle.EmojiText.Visibility = Visibility.Collapsed;
+            SetImageCredit(puzzle.ImageCreditText, image.SourceUrl);
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or UriFormatException or InvalidOperationException)
         {
@@ -600,6 +660,7 @@ public partial class MainWindow : Window
             {
                 puzzle.Image.Visibility = Visibility.Collapsed;
                 puzzle.EmojiText.Visibility = Visibility.Visible;
+                puzzle.ImageCreditText.Visibility = Visibility.Collapsed;
             }
         }
     }
@@ -607,45 +668,37 @@ public partial class MainWindow : Window
     private void RefreshWordChainLetters()
     {
         WordChainAnswerPanel.Items.Clear();
-        WordChainSecondAnswerPanel.Items.Clear();
         WordChainLetterBank.Items.Clear();
         var state = _wordChainGame.State;
-        if (state.Targets.Count != 2)
+        if (state.TargetWord is not { } word)
         {
             return;
         }
 
-        var answerPanels = new[] { WordChainAnswerPanel, WordChainSecondAnswerPanel };
-        for (var rowIndex = 0; rowIndex < answerPanels.Length; rowIndex++)
+        var answer = state.IsRoundComplete
+            ? word.Text
+            : new string(state.SelectedLetterIndices.Select(index => state.LetterBank[index]).ToArray());
+        for (var index = 0; index < word.Text.Length; index++)
         {
-            var answerPanel = answerPanels[rowIndex];
-            var answer = state.Answers[rowIndex]
-                ?? (rowIndex == state.ActiveWordIndex
-                    ? new string(state.SelectedLetterIndices.Select(index => state.LetterBank[index]).ToArray())
-                    : string.Empty);
-
-            for (var index = 0; index < state.Targets[rowIndex].Length; index++)
+            WordChainAnswerPanel.Items.Add(new Border
             {
-                answerPanel.Items.Add(new Border
+                Width = 66,
+                Height = 70,
+                Margin = new Thickness(6),
+                CornerRadius = new CornerRadius(14),
+                BorderThickness = new Thickness(2),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(225, 230, 241)),
+                Background = new SolidColorBrush(Color.FromRgb(248, 249, 253)),
+                Child = new TextBlock
                 {
-                    Width = 66,
-                    Height = 70,
-                    Margin = new Thickness(6),
-                    CornerRadius = new CornerRadius(14),
-                    BorderThickness = new Thickness(2),
-                    BorderBrush = new SolidColorBrush(Color.FromRgb(225, 230, 241)),
-                    Background = new SolidColorBrush(Color.FromRgb(248, 249, 253)),
-                    Child = new TextBlock
-                    {
-                        Text = index < answer.Length ? answer[index].ToString() : string.Empty,
-                        FontSize = 29,
-                        FontWeight = FontWeights.Bold,
-                        Foreground = new SolidColorBrush(Color.FromRgb(39, 49, 78)),
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        VerticalAlignment = VerticalAlignment.Center
-                    }
-                });
-            }
+                    Text = index < answer.Length ? answer[index].ToString() : string.Empty,
+                    FontSize = 29,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(39, 49, 78)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
+            });
         }
 
         for (var letterIndex = 0; letterIndex < state.LetterBank.Count; letterIndex++)
@@ -663,11 +716,77 @@ public partial class MainWindow : Window
             WordChainLetterBank.Items.Add(letterButton);
         }
 
-        WordChainProgressText.Text = $"Runda {state.Round} · dwa s³owa po {state.Targets[0].Length} liter";
-        WordChainBankHint.Text = $"U³ó¿ oba s³owa z tych samych {state.LetterBank.Count} liter.";
+        WordChainProgressText.Text = $"Runda {state.Round} · s³owo {word.Text.Length}-literowe";
+        WordChainBankHint.Text = "U³ó¿ nazwê pasuj¹c¹ do obrazka.";
+        WordChainCategoryText.Text = $"Kategoria: {word.CategoryName ?? "Ró¿ne"}";
+        WordChainClueText.Text = word.Clue;
         WordChainScoreText.Text = $"Punkty: {state.Score}";
         CheckWordChainButton.IsEnabled = !state.IsRoundComplete;
         NextWordChainButton.IsEnabled = state.IsRoundComplete;
+        UpdateWordChainImage(word);
+    }
+
+    private void UpdateWordChainImage(WordEntry word)
+    {
+        var imageCacheKey = GetImageCacheKey(word);
+        WordChainEmojiText.Text = word.Emoji;
+        if (string.Equals(_wordChainImageKey, imageCacheKey, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _wordChainImageKey = imageCacheKey;
+        var imageVersion = ++_wordChainImageVersion;
+        WordChainImage.Source = null;
+        WordChainImage.Tag = imageCacheKey;
+        WordChainImage.Visibility = Visibility.Collapsed;
+        WordChainEmojiText.Visibility = Visibility.Visible;
+        WordChainImageCreditText.Inlines.Clear();
+        WordChainImageCreditText.Visibility = Visibility.Collapsed;
+        _ = LoadWordChainImageAsync(word, imageCacheKey, imageVersion);
+    }
+
+    private void WordChainImage_ImageFailed(object sender, ExceptionRoutedEventArgs e)
+    {
+        WordChainImage.Source = null;
+        WordChainImage.Visibility = Visibility.Collapsed;
+        WordChainEmojiText.Visibility = Visibility.Visible;
+        WordChainImageCreditText.Visibility = Visibility.Collapsed;
+        if (WordChainImage.Tag is string imageCacheKey)
+        {
+            _imageCache[imageCacheKey] = null;
+        }
+    }
+
+    private async Task LoadWordChainImageAsync(WordEntry word, string imageCacheKey, int imageVersion)
+    {
+        try
+        {
+            if (!_imageCache.TryGetValue(imageCacheKey, out var image))
+            {
+                image = await _catalog.GetImageAsync(word);
+                _imageCache[imageCacheKey] = image;
+            }
+
+            if (imageVersion != _wordChainImageVersion || WordChainPanel.Visibility != Visibility.Visible || image is null)
+            {
+                return;
+            }
+
+            WordChainImage.Source = new BitmapImage(new Uri(image.ImageUrl, UriKind.Absolute));
+            WordChainImage.Visibility = Visibility.Visible;
+            WordChainEmojiText.Visibility = Visibility.Collapsed;
+            SetImageCredit(WordChainImageCreditText, image.SourceUrl);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or UriFormatException or InvalidOperationException)
+        {
+            if (imageVersion == _wordChainImageVersion)
+            {
+                WordChainImage.Visibility = Visibility.Collapsed;
+                WordChainEmojiText.Visibility = Visibility.Visible;
+                WordChainImageCreditText.Visibility = Visibility.Collapsed;
+            }
+        }
     }
 
     private void WordChainLetter_Click(object sender, RoutedEventArgs e)
@@ -713,20 +832,25 @@ public partial class MainWindow : Window
 
         var state = _wordChainGame.State;
         WordChainStatusText.Foreground = new SolidColorBrush(Color.FromRgb(38, 148, 105));
-        WordChainStatusText.Text = result == WordChainAnswerResult.FirstWordSolved
-            ? "Brawo! Teraz u³ó¿ drugie s³owo z tych samych liter."
-            : "Brawo! U³o¿ono oba s³owa.";
+        WordChainStatusText.Text = "Brawo! Œwietnie u³o¿one s³owo. Nastêpne za chwilê.";
         RefreshWordChainLetters();
-        var spokenAnswer = result == WordChainAnswerResult.FirstWordSolved
-            ? state.Answers[0]
-            : state.Answers[1];
-        if (_soundEnabled && spokenAnswer is { } answer)
+        if (_soundEnabled && state.TargetWord is { } word)
         {
-            _instructionReader.Speak(answer.ToLowerInvariant());
+            _instructionReader.Speak(word.Text.ToLowerInvariant());
+        }
+
+        if (result == WordChainAnswerResult.RoundSolved)
+        {
+            _ = AdvanceWordChainRoundAsync();
         }
     }
 
-    private async void NextWordChain_Click(object sender, RoutedEventArgs e)
+    private void NextWordChain_Click(object sender, RoutedEventArgs e)
+    {
+        _ = AdvanceWordChainRoundAsync();
+    }
+
+    private async Task AdvanceWordChainRoundAsync()
     {
         var state = _wordChainGame.State;
         if (!state.IsRoundComplete)
@@ -734,20 +858,21 @@ public partial class MainWindow : Window
             return;
         }
 
-        var completedWords = string.Join(", ", state.Targets);
-        WordChainStatusText.Text = $"U³o¿ono: {completedWords}. Za chwilê kolejna runda.";
+        var completedWord = state.TargetWord?.Text ?? string.Empty;
+        WordChainStatusText.Text = $"U³o¿ono: {completedWord}. Za chwilê kolejne s³owo.";
         WordChainStatusText.Foreground = new SolidColorBrush(Color.FromRgb(38, 148, 105));
         NextWordChainButton.IsEnabled = false;
         if (_soundEnabled)
         {
-            _instructionReader.Speak($"U³o¿one s³owa: {completedWords}");
+            _instructionReader.Speak($"U³o¿one s³owo: {completedWord}");
         }
 
-        var version = _wordChainSessionVersion;
+        var version = ++_wordChainSessionVersion;
         await Task.Delay(TimeSpan.FromSeconds(2));
-        if (version == _wordChainSessionVersion && WordChainPanel.Visibility == Visibility.Visible)
+        if (version == _wordChainSessionVersion
+            && WordChainPanel.Visibility == Visibility.Visible
+            && _wordChainGame.NextRound())
         {
-            _wordChainGame.NextRound();
             WordChainStatusText.Text = string.Empty;
             RefreshWordChainLetters();
         }
@@ -761,12 +886,14 @@ public partial class MainWindow : Window
             return;
         }
 
+        _numberGameQuestionVersion++;
         _numberGame.Start(mode);
         GameMenuPanel.Visibility = Visibility.Collapsed;
         WordChainPanel.Visibility = Visibility.Collapsed;
         SnakeGamePanel.Visibility = Visibility.Collapsed;
         PictureMatchPanel.Visibility = Visibility.Collapsed;
         NumberGamePanel.Visibility = Visibility.Visible;
+        HideWordActivityPanels();
         StopSnakeGame();
         UpdateNumberGameTitle();
         RenderNumberGameQuestion(readPrompt: true);
@@ -885,12 +1012,26 @@ public partial class MainWindow : Window
         {
             _instructionReader.Speak("Brawo! Dobra odpowiedŸ!");
         }
+
+        _ = AdvanceNumberGameQuestionAsync(_numberGameQuestionVersion);
     }
 
     private void NextNumberGameQuestion_Click(object sender, RoutedEventArgs e)
     {
+        _numberGameQuestionVersion++;
         _numberGame.NextQuestion();
         RenderNumberGameQuestion(readPrompt: true);
+    }
+
+    private async Task AdvanceNumberGameQuestionAsync(int completedQuestionVersion)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        if (completedQuestionVersion == _numberGameQuestionVersion
+            && NumberGamePanel.Visibility == Visibility.Visible
+            && _numberGame.State.IsComplete)
+        {
+            NextNumberGameQuestion_Click(this, new RoutedEventArgs());
+        }
     }
 
     private void SpeakNumberGamePrompt(string text)
@@ -1034,6 +1175,7 @@ public partial class MainWindow : Window
 
     private void ReturnToNumberLearning_Click(object sender, RoutedEventArgs e)
     {
+        _numberQuizQuestionVersion++;
         NumberQuizPanel.Visibility = Visibility.Collapsed;
         NumberLearningPanel.Visibility = Visibility.Visible;
         UpdateNumberDisplay(readAloud: false);
@@ -1041,6 +1183,7 @@ public partial class MainWindow : Window
 
     private void GenerateNumberQuizQuestion()
     {
+        _numberQuizQuestionVersion++;
         var question = _numberQuiz.CreateQuestion();
         _currentNumberQuizQuestion = question;
         NumberQuizQuestionText.Text = question.Prompt;
@@ -1107,11 +1250,23 @@ public partial class MainWindow : Window
             _instructionReader.Stop();
             _instructionReader.Speak("Brawo! Œwietnie!");
         }
+
+        _ = AdvanceNumberQuizQuestionAsync(_numberQuizQuestionVersion);
     }
 
     private void NextNumberQuiz_Click(object sender, RoutedEventArgs e)
     {
         GenerateNumberQuizQuestion();
+    }
+
+    private async Task AdvanceNumberQuizQuestionAsync(int completedQuestionVersion)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        if (completedQuestionVersion == _numberQuizQuestionVersion
+            && NumberQuizPanel.Visibility == Visibility.Visible)
+        {
+            GenerateNumberQuizQuestion();
+        }
     }
 
     private void ReadNumberQuizQuestion_Click(object sender, RoutedEventArgs e)
@@ -1223,7 +1378,7 @@ public partial class MainWindow : Window
         _words = category.OfflineWords;
         _wordIndex = -1;
         ShowNextWord();
-        SetStatus("Pobieram wiêkszy zestaw s³ów z darmowego API…", Colors.DarkSlateBlue);
+        SetStatus("Pobieram obrazki z Wikipedii…", Colors.DarkSlateBlue);
 
         try
         {
@@ -1249,7 +1404,7 @@ public partial class MainWindow : Window
                 ShowNextWord();
             }
             SetStatus(result.ApiUnavailable
-                ? $"Brak po³¹czenia z API — u¿ywam s³ów offline ({_words.Count})."
+                ? $"Wikipedia jest chwilowo niedostêpna. U¿ywam s³ów offline ({_words.Count}) i podpowiedzi emoji."
                 : result.ApiImageCount > 0
                 ? $"Obrazki z Wikipedii: {result.ApiImageCount}  ·  W zestawie: {_words.Count} s³ów"
                 : $"W zestawie: {_words.Count} prostych s³ów",
@@ -1264,7 +1419,7 @@ public partial class MainWindow : Window
         {
             if (loadVersion == _categoryLoadVersion)
             {
-                SetStatus("Nie uda³o siê pobraæ s³ów. SprawdŸ po³¹czenie z internetem.", Color.FromRgb(207, 87, 100));
+                SetStatus($"Nie uda³o siê po³¹czyæ z Wikipedi¹. U¿ywam s³ów offline ({_words.Count}).", Color.FromRgb(204, 139, 43));
             }
         }
     }
@@ -1324,7 +1479,8 @@ public partial class MainWindow : Window
 
     private async Task LoadImageAsync(WordEntry word, int displayVersion, CancellationToken cancellationToken)
     {
-        if (_imageCache.TryGetValue(word.Text, out var cachedImage))
+        var imageCacheKey = GetImageCacheKey(word);
+        if (_imageCache.TryGetValue(imageCacheKey, out var cachedImage))
         {
             if (cachedImage is not null && displayVersion == _displayVersion)
             {
@@ -1347,11 +1503,11 @@ public partial class MainWindow : Window
 
             if (image is null)
             {
-                _imageCache[word.Text] = null;
+                _imageCache[imageCacheKey] = null;
                 return;
             }
 
-            _imageCache[word.Text] = image;
+            _imageCache[imageCacheKey] = image;
             PictureImage.Source = new BitmapImage(new Uri(image.ImageUrl, UriKind.Absolute));
             PictureImage.Visibility = Visibility.Visible;
             PictureText.Visibility = Visibility.Collapsed;
@@ -1362,24 +1518,39 @@ public partial class MainWindow : Window
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or UriFormatException)
         {
-            _imageCache[word.Text] = null;
+            _imageCache[imageCacheKey] = null;
         }
     }
 
+    private static string GetImageCacheKey(WordEntry word) =>
+        $"{word.Text}\u001f{word.ImageUrl}\u001f{word.SourceUrl}\u001f{word.ImageSearchTerm}";
+
     private void SetImageCredit(string sourceUrl)
     {
-        ImageCreditText.Inlines.Clear();
-        var sourceUri = new Uri(sourceUrl, UriKind.Absolute);
+        SetImageCredit(ImageCreditText, sourceUrl);
+    }
+
+    private void SetImageCredit(TextBlock creditText, string sourceUrl)
+    {
+        creditText.Inlines.Clear();
+        if (!Uri.TryCreate(sourceUrl, UriKind.Absolute, out var sourceUri)
+            || sourceUri.Scheme is not ("http" or "https"))
+        {
+            creditText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
         var sourceName = sourceUri.Host is "flagcdn.com" or "www.flagcdn.com"
             ? "FlagCDN"
             : "Wikimedia Commons / Wikipedia";
-        ImageCreditText.Inlines.Add(new Run("ród³o obrazka: "));
+        creditText.Inlines.Add(new Run("ród³o obrazka: "));
         var link = new Hyperlink(new Run(sourceName))
         {
             NavigateUri = sourceUri
         };
         link.RequestNavigate += SourceLink_RequestNavigate;
-        ImageCreditText.Inlines.Add(link);
+        creditText.Inlines.Add(link);
+        creditText.Visibility = Visibility.Visible;
     }
 
     private void RefreshLetters()
@@ -1539,7 +1710,7 @@ public partial class MainWindow : Window
         ImageCreditText.Inlines.Clear();
         if (_wordIndex >= 0 && _wordIndex < _words.Count)
         {
-            _imageCache[_words[_wordIndex].Text] = null;
+            _imageCache[GetImageCacheKey(_words[_wordIndex])] = null;
         }
     }
 

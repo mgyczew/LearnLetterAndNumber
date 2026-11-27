@@ -4,6 +4,7 @@ using LetterGame.Domain.Models;
 
 namespace LetterGame.Infrastructure;
 
+/// <summary>Uzupe³nia lokalne s³owa miniaturami i adresami artyku³ów z Wikipedii.</summary>
 public sealed class WikipediaWordCatalogSource(HttpClient httpClient) : IWordCatalogSource
 {
     private sealed record PageImage(string? ThumbnailUrl, string ArticleUrl);

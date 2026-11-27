@@ -2,6 +2,7 @@ using LetterGame.Domain.Models;
 
 namespace LetterGame.Domain.Services;
 
+/// <summary>Tworzy dzia³ania o stopniowo rosn¹cym poziomie trudnoœci i zestaw odpowiedzi.</summary>
 public sealed class MathQuestionGenerator(Random? random = null)
 {
     private readonly Random _random = random ?? Random.Shared;
